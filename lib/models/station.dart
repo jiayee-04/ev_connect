@@ -1,0 +1,187 @@
+import 'package:flutter/material.dart';
+
+enum StationStatus { available, busy, offline }
+
+/// Where a station record came from. Real apps blend a live network feed
+/// with community-submitted corrections, and are honest with the user
+/// about which one they're looking at.
+enum StationSource { live, community, mock }
+
+class ChargingStation {
+  final String id;
+  final String name;
+  final String address;
+  final double latitude;
+  final double longitude;
+  final double distanceKm;
+  final double rating;
+  final int reviewCount;
+  final StationStatus status;
+  final List<String> connectors;
+  final String speed; // Fast / Standard / Slow
+  final double maxPowerKw;
+  final double pricePerKwh; // RM
+  final int freeSlots;
+  final int totalSlots;
+  final String operator; // e.g. ChargEV, Gentari, Shell Recharge
+  final bool isOpen24Hours;
+  final List<String> amenities;
+  final StationSource source;
+  final DateTime? lastVerified; // community "last confirmed working" stamp
+
+  const ChargingStation({
+    required this.id,
+    required this.name,
+    required this.address,
+    required this.latitude,
+    required this.longitude,
+    required this.distanceKm,
+    required this.rating,
+    this.reviewCount = 0,
+    required this.status,
+    required this.connectors,
+    required this.speed,
+    this.maxPowerKw = 0,
+    required this.pricePerKwh,
+    required this.freeSlots,
+    required this.totalSlots,
+    this.operator = 'Independent',
+    this.isOpen24Hours = true,
+    this.amenities = const [],
+    this.source = StationSource.mock,
+    this.lastVerified,
+  });
+
+  String get statusLabel {
+    switch (status) {
+      case StationStatus.available:
+        return 'Available';
+      case StationStatus.busy:
+        return 'Busy';
+      case StationStatus.offline:
+        return 'Offline';
+    }
+  }
+
+  Color get statusColor {
+    switch (status) {
+      case StationStatus.available:
+        return const Color(0xFF2E7D32);
+      case StationStatus.busy:
+        return const Color(0xFFEF6C00);
+      case StationStatus.offline:
+        return const Color(0xFF9E9E9E);
+    }
+  }
+
+  /// Rough charge-time estimate shown before booking, the way real apps
+  /// (ChargEV, PlugShare, Gentari) surface "how long will this actually
+  /// take" instead of leaving the user to guess.
+  String estimateTimeFor(double kwhNeeded) {
+    if (maxPowerKw <= 0) return '—';
+    final hours = kwhNeeded / maxPowerKw;
+    final minutes = (hours * 60).round();
+    if (minutes < 60) return '${minutes}m';
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    return m == 0 ? '${h}h' : '${h}h ${m}m';
+  }
+
+  double estimateCostFor(double kwhNeeded) => kwhNeeded * pricePerKwh;
+
+  IconData get connectorIcon {
+    if (connectors.any((c) => c.contains('CCS'))) return Icons.ev_station_rounded;
+    if (connectors.any((c) => c.contains('CHAdeMO'))) return Icons.bolt_rounded;
+    return Icons.power_rounded;
+  }
+
+  String get sourceLabel {
+    switch (source) {
+      case StationSource.live:
+        return 'Live network data';
+      case StationSource.community:
+        return 'Community verified';
+      case StationSource.mock:
+        return 'Sample data';
+    }
+  }
+
+  ChargingStation copyWith({double? distanceKm}) {
+    return ChargingStation(
+      id: id,
+      name: name,
+      address: address,
+      latitude: latitude,
+      longitude: longitude,
+      distanceKm: distanceKm ?? this.distanceKm,
+      rating: rating,
+      reviewCount: reviewCount,
+      status: status,
+      connectors: connectors,
+      speed: speed,
+      maxPowerKw: maxPowerKw,
+      pricePerKwh: pricePerKwh,
+      freeSlots: freeSlots,
+      totalSlots: totalSlots,
+      operator: operator,
+      isOpen24Hours: isOpen24Hours,
+      amenities: amenities,
+      source: source,
+      lastVerified: lastVerified,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'address': address,
+        'latitude': latitude,
+        'longitude': longitude,
+        'distanceKm': distanceKm,
+        'rating': rating,
+        'reviewCount': reviewCount,
+        'status': status.name,
+        'connectors': connectors,
+        'speed': speed,
+        'maxPowerKw': maxPowerKw,
+        'pricePerKwh': pricePerKwh,
+        'freeSlots': freeSlots,
+        'totalSlots': totalSlots,
+        'operator': operator,
+        'isOpen24Hours': isOpen24Hours,
+        'amenities': amenities,
+        'source': source.name,
+        'lastVerified': lastVerified?.toIso8601String(),
+      };
+
+  factory ChargingStation.fromJson(Map<String, dynamic> json) => ChargingStation(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        address: json['address'] as String,
+        latitude: (json['latitude'] as num).toDouble(),
+        longitude: (json['longitude'] as num).toDouble(),
+        distanceKm: (json['distanceKm'] as num).toDouble(),
+        rating: (json['rating'] as num).toDouble(),
+        reviewCount: json['reviewCount'] as int? ?? 0,
+        status: StationStatus.values.firstWhere(
+          (s) => s.name == json['status'],
+          orElse: () => StationStatus.available,
+        ),
+        connectors: List<String>.from(json['connectors'] as List? ?? []),
+        speed: json['speed'] as String? ?? 'Standard',
+        maxPowerKw: (json['maxPowerKw'] as num?)?.toDouble() ?? 0,
+        pricePerKwh: (json['pricePerKwh'] as num).toDouble(),
+        freeSlots: json['freeSlots'] as int? ?? 0,
+        totalSlots: json['totalSlots'] as int? ?? 0,
+        operator: json['operator'] as String? ?? 'Independent',
+        isOpen24Hours: json['isOpen24Hours'] as bool? ?? true,
+        amenities: List<String>.from(json['amenities'] as List? ?? []),
+        source: StationSource.values.firstWhere(
+          (s) => s.name == json['source'],
+          orElse: () => StationSource.mock,
+        ),
+        lastVerified: json['lastVerified'] != null
+            ? DateTime.tryParse(json['lastVerified'] as String)
+            : null,
+      );
+}

@@ -1,0 +1,44 @@
+name: ev_connect
+description: "EV Connect - Find, book and pay for EV charging in Malaysia."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Real locale switching (Settings > Language) - needed for MaterialApp's
+  # locale/supportedLocales to work properly.
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  firebase_core: ^3.8.0 
+  firebase_auth: ^5.3.3
+  shared_preferences: ^2.2.2
+  intl: ^0.20.2
+  # Real interactive map (OpenStreetMap tiles, no API key required).
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  # Real GPS location for "my location" / nearby stations.
+  geolocator: ^13.0.1
+  # Live charging-station data from the Open Charge Map API, and free
+  # place-name geocoding for the Route Planner (both via Nominatim/OCM).
+  http: ^1.2.2
+  # Hands off to the phone's Google Maps app for turn-by-turn navigation.
+  url_launcher: ^6.3.1
+  # Google and Apple sign-in.
+  google_sign_in: ^6.2.1
+  # Real system-tray notifications for charging/payment events.
+  flutter_local_notifications: ^17.2.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
