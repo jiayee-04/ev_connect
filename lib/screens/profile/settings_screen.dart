@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_header.dart';
 import '../../services/theme_controller.dart';
-import '../../services/locale_controller.dart';
 import '../../l10n/app_strings.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -29,21 +28,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Future<void> _changeLanguage(String code) async {
-    await LocaleController.instance.setLocale(code);
-    if (!mounted) return;
-    setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(AppStrings.t('language_changed')),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final currentCode = LocaleController.instance.value.languageCode;
     return Scaffold(
       appBar: AppHeader(title: AppStrings.t('settings_title')),
       body: ListView(
@@ -66,24 +52,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               value: _notifications,
               activeColor: AppColors.primary,
               onChanged: (v) => setState(() => _notifications = v),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _settingsTile(
-            icon: Icons.language_rounded,
-            title: AppStrings.t('language'),
-            trailing: DropdownButton<String>(
-              value: currentCode,
-              underline: const SizedBox(),
-              items: AppStrings.languageNames.entries
-                  .map((e) => DropdownMenuItem(
-                      value: e.key,
-                      child: Text(e.value,
-                          style: const TextStyle(color: AppColors.textDark))))
-                  .toList(),
-              onChanged: (v) {
-                if (v != null) _changeLanguage(v);
-              },
             ),
           ),
           const SizedBox(height: 12),

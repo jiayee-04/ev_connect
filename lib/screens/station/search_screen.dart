@@ -14,8 +14,8 @@ class StationSearchScreen extends StatefulWidget {
 
 class _StationSearchScreenState extends State<StationSearchScreen> {
   final _controller = TextEditingController();
-  List<String> _recent = ['JomCharge KL Sentral', 'Shell Recharge Rawang'];
-  static const _popular = ['Tesla Supercharger', 'Gentari Pavilion', 'Petronas DC Charger'];
+  List<String> _recent = ['JomCharge Sunway Pyramid', 'Shell Recharge Rawang'];
+  static const _popular = ['Tesla Supercharger', 'Gentari Pavilion', 'Petronas EV Charger'];
   List<ChargingStation> _results = [];
 
   void _search(String query) {
