@@ -18,6 +18,14 @@ class ChargingSessionScreen extends StatefulWidget {
 class _ChargingSessionScreenState extends State<ChargingSessionScreen> {
   final _manager = ChargingSessionManager.instance;
 
+  // Set right before we intentionally stop the session and navigate to
+  // the summary/payment screen. stop() sets isActive = false and notifies
+  // listeners BEFORE the navigation completes, which would otherwise make
+  // this screen's own "nothing active, bounce back" logic below fire and
+  // pop the summary screen we just pushed. This flag tells that logic to
+  // stand down since we're already leaving on purpose.
+  bool _leaving = false;
+
   void _minimize() {
     Navigator.of(context).pushNamedAndRemoveUntil('/home', (r) => false);
   }
@@ -44,6 +52,7 @@ class _ChargingSessionScreenState extends State<ChargingSessionScreen> {
   }
 
   void _goToSummary() {
+    _leaving = true;
     final result = _manager.stop();
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
@@ -69,9 +78,13 @@ class _ChargingSessionScreenState extends State<ChargingSessionScreen> {
       animation: _manager,
       builder: (context, _) {
         final station = _manager.station;
-        if (station == null || !_manager.isActive) {
+        if (!_leaving && (station == null || !_manager.isActive)) {
           // Nothing active (e.g. deep-linked here with no session) -
           // just bounce back rather than showing a broken screen.
+          // Skipped while _leaving is true: stop() sets isActive = false
+          // and notifies listeners before pushReplacement finishes, and
+          // without this guard this same check would fire during that
+          // window and pop the summary/payment screen we just pushed.
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) Navigator.of(context).pop();
           });
@@ -99,7 +112,7 @@ class _ChargingSessionScreenState extends State<ChargingSessionScreen> {
                       ),
                       Expanded(
                         child: Text(
-                          station.name,
+                          station?.name ?? 'Charging',
                           textAlign: TextAlign.center,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
