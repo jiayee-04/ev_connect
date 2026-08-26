@@ -1,5 +1,4 @@
 import '../models/station.dart';
-import '../models/charging_session.dart';
 
 /// Static/demo data standing in for the government open-data feed
 /// (charging station locations, operators, availability) mentioned
@@ -162,38 +161,6 @@ class MockData {
       amenities: ['Toilet'],
       source: StationSource.community,
       lastVerified: DateTime(2026, 7, 22, 16, 50),
-    ),
-  ];
-
-  static List<ChargingSession> history = [
-    ChargingSession(
-      stationName: 'ChargeSini KL Sentral',
-      location: 'Mid Valley, Kuala Lumpur',
-      date: DateTime(2026, 7, 19, 10, 12),
-      minutes: 38,
-      kwh: 18.4,
-      amount: 16.20,
-      status: SessionStatus.completed,
-      paymentMethod: 'TnG eWallet',
-    ),
-    ChargingSession(
-      stationName: 'Gentari Pavilion',
-      location: 'Pavilion KL, Bukit Bintang',
-      date: DateTime(2026, 7, 18, 19, 45),
-      minutes: 52,
-      kwh: 24.4,
-      amount: 22.30,
-      status: SessionStatus.completed,
-      paymentMethod: 'Credit / Debit Card',
-    ),
-    ChargingSession(
-      stationName: 'Shell Recharge Rawang',
-      location: 'Rawang, Selangor',
-      date: DateTime(2026, 7, 17, 14, 5),
-      minutes: 0,
-      kwh: 0,
-      amount: 0,
-      status: SessionStatus.cancelled,
     ),
   ];
 

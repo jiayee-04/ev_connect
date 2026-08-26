@@ -6,6 +6,7 @@ import '../../models/vehicle.dart';
 import '../../services/app_state.dart';
 import '../../services/charging_session_manager.dart';
 import '../session/charging_session_screen.dart';
+import '../session/connector_detect_screen.dart';
 
 /// Real EV charging doesn't ask you to pre-pay an estimate before you've
 /// even plugged in - you set roughly where your battery is and how far
@@ -67,14 +68,15 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
       return;
     }
 
-    ChargingSessionManager.instance.start(
-      station: widget.station,
-      batteryCapacityKwh: vehicle.batteryCapacityKwh,
-      startBatteryPct: _startPct,
-      targetBatteryPct: _targetPct,
-    );
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const ChargingSessionScreen()),
+      MaterialPageRoute(
+        builder: (_) => ConnectorDetectScreen(
+          station: widget.station,
+          batteryCapacityKwh: vehicle.batteryCapacityKwh,
+          startBatteryPct: _startPct,
+          targetBatteryPct: _targetPct,
+        ),
+      ),
     );
   }
 

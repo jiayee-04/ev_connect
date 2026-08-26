@@ -4,6 +4,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/app_header.dart';
 import '../../services/app_state.dart';
 import '../../models/charging_session.dart';
+import '../payment/booking_confirm_screen.dart';
 
 class ChargingHistoryScreen extends StatefulWidget {
   const ChargingHistoryScreen({super.key});
@@ -24,6 +25,23 @@ class _ChargingHistoryScreenState extends State<ChargingHistoryScreen> {
   Future<void> _load() async {
     final sessions = await AppState.instance.getHistory();
     if (mounted) setState(() => _sessions = sessions);
+  }
+
+  void _rebook(BuildContext context, ChargingSession session) {
+    final station = session.station;
+    if (station == null) {
+      // Sessions saved before station snapshots were added to history
+      // won't have one on hand - nothing to rebook against.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Station details for this session are no longer available.'),
+        ),
+      );
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => BookingConfirmScreen(station: station)),
+    );
   }
 
   @override
@@ -78,7 +96,10 @@ class _ChargingHistoryScreenState extends State<ChargingHistoryScreen> {
                       style: TextStyle(color: AppColors.textMuted)),
                 ),
               ),
-            ...sessions.map((s) => _SessionTile(session: s)),
+            ...sessions.map((s) => _SessionTile(
+                  session: s,
+                  onRebook: () => _rebook(context, s),
+                )),
           ],
         ),
       ),
@@ -125,7 +146,8 @@ class _StatCard extends StatelessWidget {
 
 class _SessionTile extends StatelessWidget {
   final ChargingSession session;
-  const _SessionTile({required this.session});
+  final VoidCallback onRebook;
+  const _SessionTile({required this.session, required this.onRebook});
 
   Color get _statusColor {
     switch (session.status) {
@@ -196,7 +218,7 @@ class _SessionTile extends StatelessWidget {
                           fontSize: 16,
                           color: AppColors.textDark)),
                   TextButton.icon(
-                    onPressed: () {},
+                    onPressed: onRebook,
                     icon: const Icon(Icons.replay_rounded, size: 16),
                     label: const Text('Rebook'),
                   ),

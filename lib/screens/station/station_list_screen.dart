@@ -19,8 +19,13 @@ class StationListScreen extends StatefulWidget {
 }
 
 class _StationListScreenState extends State<StationListScreen> {
+  // Kept in one place because it has to match the radius actually passed to
+  // OpenChargeMapService.nearby() below — otherwise the filter screen's
+  // distance slider can offer a range with zero fetched stations in it.
+  static const double kNearbyRadiusKm = 25;
+
   bool _showMap = false;
-  StationFilters _filters = StationFilters.initial();
+  StationFilters _filters = StationFilters.initial(kNearbyRadiusKm);
 
   // Real nearby stations from GPS + Open Charge Map, the same live source
   // the Map tab uses — the List used to just filter the 5-7 bundled mock
@@ -38,7 +43,7 @@ class _StationListScreenState extends State<StationListScreen> {
     setState(() => _loading = true);
     final pos = await LocationService.instance.getCurrentLatLng();
     final result = await OpenChargeMapService.instance
-        .nearby(center: pos, radiusKm: 25, maxResults: 30);
+        .nearby(center: pos, radiusKm: kNearbyRadiusKm, maxResults: 30);
     if (!mounted) return;
     setState(() {
       _stations = result;
@@ -59,6 +64,9 @@ class _StationListScreenState extends State<StationListScreen> {
       if (_filters.providers.isNotEmpty &&
           !_filters.providers.any(
               (p) => p.toLowerCase() == s.operator.toLowerCase())) {
+        return false;
+      }
+      if (_filters.speeds.isNotEmpty && !_filters.speeds.contains(s.speed)) {
         return false;
       }
       return true;
@@ -114,7 +122,17 @@ class _StationListScreenState extends State<StationListScreen> {
                     onTap: () async {
                       final result = await Navigator.of(context).push<StationFilters>(
                         MaterialPageRoute(
-                          builder: (_) => FilterScreen(initial: _filters),
+                          builder: (_) => FilterScreen(
+                            initial: _filters,
+                            maxRadiusKm: kNearbyRadiusKm,
+                            allStations: _stations,
+                            availableProviders:
+                                _stations.map((s) => s.operator).toSet().toList(),
+                            availableConnectors: _stations
+                                .expand((s) => s.connectors)
+                                .toSet()
+                                .toList(),
+                          ),
                         ),
                       );
                       if (result != null) setState(() => _filters = result);
@@ -248,19 +266,25 @@ class StationFilters {
   final double maxDistanceKm;
   final bool availableOnly;
   final Set<String> providers;
+  final Set<String> speeds;
 
   StationFilters({
     required this.connectors,
     required this.maxDistanceKm,
     required this.availableOnly,
     required this.providers,
+    this.speeds = const {},
   });
 
-  factory StationFilters.initial() => StationFilters(
+  // Defaults to the full fetched radius so "no filter applied" really means
+  // no filter applied, instead of silently hiding stations between the old
+  // hardcoded 20km default and the 25km radius that's actually fetched.
+  factory StationFilters.initial(double defaultRadiusKm) => StationFilters(
         connectors: {},
-        maxDistanceKm: 20,
+        maxDistanceKm: defaultRadiusKm,
         availableOnly: false,
         providers: {},
+        speeds: {},
       );
 
   StationFilters copyWith({
@@ -268,12 +292,14 @@ class StationFilters {
     double? maxDistanceKm,
     bool? availableOnly,
     Set<String>? providers,
+    Set<String>? speeds,
   }) {
     return StationFilters(
       connectors: connectors ?? this.connectors,
       maxDistanceKm: maxDistanceKm ?? this.maxDistanceKm,
       availableOnly: availableOnly ?? this.availableOnly,
       providers: providers ?? this.providers,
+      speeds: speeds ?? this.speeds,
     );
   }
 }

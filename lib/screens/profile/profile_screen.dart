@@ -62,11 +62,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             Row(
               children: [
-                const CircleAvatar(
-                  radius: 34,
-                  backgroundColor: AppColors.primaryLight,
-                  child: Icon(Icons.person_rounded, size: 38, color: Colors.white),
-                ),
+                ProfileAvatar(photoPath: user?.photoPath, radius: 34),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(

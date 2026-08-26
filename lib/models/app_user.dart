@@ -6,6 +6,7 @@ class AppUser {
   final String phone;
   final String? password; // null for Google/Apple accounts - no local password
   final AuthProvider provider;
+  final String? photoPath; // local file path of the profile picture, if set
 
   AppUser({
     required this.fullName,
@@ -13,6 +14,7 @@ class AppUser {
     required this.phone,
     this.password,
     this.provider = AuthProvider.email,
+    this.photoPath,
   });
 
   Map<String, dynamic> toJson() => {
@@ -21,6 +23,7 @@ class AppUser {
         'phone': phone,
         'password': password,
         'provider': provider.name,
+        'photoPath': photoPath,
       };
 
   factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
@@ -32,15 +35,23 @@ class AppUser {
           (p) => p.name == json['provider'],
           orElse: () => AuthProvider.email,
         ),
+        photoPath: json['photoPath'],
       );
 
-  AppUser copyWith({String? fullName, String? email, String? phone}) {
+  AppUser copyWith({
+    String? fullName,
+    String? email,
+    String? phone,
+    String? photoPath,
+    bool clearPhoto = false,
+  }) {
     return AppUser(
       fullName: fullName ?? this.fullName,
       email: email ?? this.email,
       phone: phone ?? this.phone,
       password: password,
       provider: provider,
+      photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
     );
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
@@ -112,6 +114,60 @@ class RoundedActionButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Circular profile picture. Shows the user's local photo file when
+/// [photoPath] is set (and the file still exists), otherwise falls back
+/// to the default person icon. Pass [onEditTap] to show a small pencil
+/// badge in the corner that the user can tap to change the picture.
+class ProfileAvatar extends StatelessWidget {
+  final String? photoPath;
+  final double radius;
+  final VoidCallback? onEditTap;
+
+  const ProfileAvatar({
+    super.key,
+    required this.photoPath,
+    this.radius = 34,
+    this.onEditTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final file = (photoPath != null && photoPath!.isNotEmpty) ? File(photoPath!) : null;
+    final hasPhoto = file != null && file.existsSync();
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        CircleAvatar(
+          radius: radius,
+          backgroundColor: AppColors.primaryLight,
+          backgroundImage: hasPhoto ? FileImage(file) : null,
+          child: hasPhoto
+              ? null
+              : Icon(Icons.person_rounded, size: radius * 1.1, color: Colors.white),
+        ),
+        if (onEditTap != null)
+          Positioned(
+            right: -2,
+            bottom: -2,
+            child: Material(
+              color: AppColors.primaryDark,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: onEditTap,
+                child: const Padding(
+                  padding: EdgeInsets.all(6),
+                  child: Icon(Icons.edit_rounded, color: Colors.white, size: 16),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

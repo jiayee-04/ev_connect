@@ -98,20 +98,18 @@ class AppState {
     await _writeFavourites(map);
   }
 
-  /// Sessions actually completed in this app, persisted across restarts,
-  /// merged with the bundled sample history and sorted newest-first —
-  /// this is what "Charging History" now actually reads from, instead
-  /// of a static list nothing ever wrote to.
+  /// Sessions actually completed in this app, persisted across restarts
+  /// and sorted newest-first. Only real sessions the user has actually
+  /// paid for through the app - no seeded/sample entries mixed in.
   Future<List<ChargingSession>> getHistory() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList(_historyKey) ?? [];
     final real = raw
         .map((s) => ChargingSession.fromJson(
             Map<String, dynamic>.from(jsonDecode(s))))
-        .toList();
-    final combined = [...real, ...MockData.history]
+        .toList()
       ..sort((a, b) => b.date.compareTo(a.date));
-    return combined;
+    return real;
   }
 
   Future<void> addHistoryEntry(ChargingSession session) async {

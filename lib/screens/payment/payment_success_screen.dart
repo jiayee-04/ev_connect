@@ -136,8 +136,14 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
               ),
               const SizedBox(height: 10),
               TextButton(
-                onPressed: () => Navigator.of(context)
-                    .pushNamedAndRemoveUntil('/history', (r) => false),
+                onPressed: () {
+                  // Reset to Home first, then push History on top of it -
+                  // otherwise History becomes the only route on the stack
+                  // and its back button has nothing left to pop to.
+                  Navigator.of(context)
+                      .pushNamedAndRemoveUntil('/home', (r) => false);
+                  Navigator.of(context).pushNamed('/history');
+                },
                 child: const Text('View Charging History'),
               ),
             ],

@@ -17,6 +17,7 @@ class AuthService {
   static final AuthService instance = AuthService._();
 
   static const _phoneKeyPrefix = 'ev_connect_phone_';
+  static const _photoKeyPrefix = 'ev_connect_photo_';
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
@@ -104,11 +105,13 @@ class AuthService {
     final firebaseUser = _auth.currentUser;
     if (firebaseUser == null) return null;
     final phone = await _readPhone(firebaseUser.uid);
+    final photoPath = await _readPhotoPath(firebaseUser.uid);
     return AppUser(
       fullName: firebaseUser.displayName ?? '',
       email: firebaseUser.email ?? '',
       phone: phone,
       provider: _mapProvider(firebaseUser),
+      photoPath: photoPath,
     );
   }
 
@@ -117,6 +120,11 @@ class AuthService {
     if (firebaseUser == null) return;
     await firebaseUser.updateDisplayName(user.fullName);
     await _savePhone(firebaseUser.uid, user.phone);
+    if (user.photoPath == null) {
+      await _clearPhotoPath(firebaseUser.uid);
+    } else {
+      await _savePhotoPath(firebaseUser.uid, user.photoPath!);
+    }
   }
 
   Future<bool> isLoggedIn() async {
@@ -148,6 +156,21 @@ class AuthService {
   Future<String> _readPhone(String uid) async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('$_phoneKeyPrefix$uid') ?? '';
+  }
+
+  Future<void> _savePhotoPath(String uid, String path) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_photoKeyPrefix$uid', path);
+  }
+
+  Future<String?> _readPhotoPath(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('$_photoKeyPrefix$uid');
+  }
+
+  Future<void> _clearPhotoPath(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('$_photoKeyPrefix$uid');
   }
 
   String _friendlyError(FirebaseAuthException e) {

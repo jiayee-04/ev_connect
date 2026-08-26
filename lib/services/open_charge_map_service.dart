@@ -37,8 +37,8 @@ class OpenChargeMapService {
       'distance': radiusKm.toString(),
       'distanceunit': 'KM',
       'maxresults': maxResults.toString(),
-      'compact': 'true',
-      'verbose': 'false',
+      'compact': 'false',
+      'verbose': 'true',
       if (apiKey.isNotEmpty) 'key': apiKey,
     });
 
@@ -77,6 +77,52 @@ class OpenChargeMapService {
     return withRealDistance;
   }
 
+  /// OCM's connector titles are free-text and inconsistent across records
+  /// (e.g. "CCS (Type 2)", "Type 2 (Socket Only)", "Type 2 (Tethered
+  /// Connector)"). The app's filter screen only knows a small set of
+  /// canonical labels, so raw titles need to be bucketed into those before
+  /// they're stored - otherwise exact-match filtering (e.g. "CCS2") never
+  /// finds anything.
+  String _canonicalConnector(String rawTitle) {
+    final t = rawTitle.toLowerCase();
+    // Check CCS/Combo before the generic "type 2" check below, since OCM's
+    // CCS title also contains the substring "type 2" (e.g. "CCS (Type 2)").
+    if (t.contains('ccs') || t.contains('combo')) return 'CCS2';
+    if (t.contains('chademo')) return 'CHAdeMO';
+    if (t.contains('type 2') || t.contains('mennekes')) return 'Type 2';
+    if (t.contains('type 1') || t.contains('j1772')) return 'Type 1';
+    if (t.contains('tesla')) return 'Tesla';
+    if (t.contains('gb/t') || t.contains('gbt')) return 'GB/T';
+    return rawTitle;
+  }
+
+  /// OCM's operator titles are whatever the community entered - legal
+  /// entity names, inconsistent casing, sometimes blank. Map known
+  /// Malaysian CPOs onto the clean brand names the filter screen offers,
+  /// and fall back to the raw (trimmed) title so it's still visible even
+  /// when it isn't one of the known ones.
+  String _canonicalOperator(String? rawTitle) {
+    final t = rawTitle?.trim() ?? '';
+    if (t.isEmpty) return 'Independent';
+    final lower = t.toLowerCase();
+    const known = {
+      'chargesini': 'ChargeSini',
+      'jomcharge': 'JomCharge',
+      'gentari': 'Gentari',
+      'chargev': 'ChargEV',
+      'charge ev': 'ChargEV',
+      'shell': 'Shell Recharge',
+      'tesla': 'Tesla',
+      'tnb': 'TNB Electron',
+      'charge n go': 'Charge N Go',
+      'chargengo': 'Charge N Go',
+    };
+    for (final entry in known.entries) {
+      if (lower.contains(entry.key)) return entry.value;
+    }
+    return t;
+  }
+
   ChargingStation? _fromOcmJson(dynamic raw, LatLng center) {
     try {
       final map = raw as Map<String, dynamic>;
@@ -91,7 +137,7 @@ class OpenChargeMapService {
       final connectorNames = connections
           .map((c) => (c as Map<String, dynamic>)['ConnectionType'] as Map<String, dynamic>?)
           .where((c) => c != null)
-          .map((c) => (c!['Title'] as String?) ?? 'Unknown')
+          .map((c) => _canonicalConnector((c!['Title'] as String?) ?? 'Unknown'))
           .toSet()
           .toList();
 
@@ -130,7 +176,7 @@ class OpenChargeMapService {
         pricePerKwh: 1.10,
         freeSlots: numPoints,
         totalSlots: numPoints,
-        operator: (operatorInfo?['Title'] as String?) ?? 'Independent',
+        operator: _canonicalOperator(operatorInfo?['Title'] as String?),
         source: StationSource.live,
       );
     } catch (_) {

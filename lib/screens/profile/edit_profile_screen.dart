@@ -1,4 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
 import '../../theme/app_theme.dart';
 import '../../widgets/app_header.dart';
 import '../../widgets/common_widgets.dart';
@@ -17,7 +23,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   late final _nameController = TextEditingController(text: widget.user.fullName);
   late final _phoneController = TextEditingController(text: widget.user.phone);
+  late String? _photoPath = widget.user.photoPath;
   bool _saving = false;
+  bool _pickingPhoto = false;
 
   static final _phoneRegex = RegExp(r'^0\d{1,2}-?\d{7,8}$');
 
@@ -34,11 +42,81 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final updated = widget.user.copyWith(
       fullName: _nameController.text.trim(),
       phone: _phoneController.text.trim(),
+      photoPath: _photoPath,
+      clearPhoto: _photoPath == null,
     );
     await AuthService.instance.updateUser(updated);
     if (!mounted) return;
     setState(() => _saving = false);
     Navigator.of(context).pop(updated);
+  }
+
+  Future<void> _pickPhoto(ImageSource source) async {
+    Navigator.of(context).pop(); // close the bottom sheet
+    setState(() => _pickingPhoto = true);
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+
+      // Copy into permanent app storage so it survives cache clears and
+      // the picker's temp file being deleted.
+      final dir = await getApplicationDocumentsDirectory();
+      final ext = p.extension(picked.path);
+      final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}$ext';
+      final savedFile = await File(picked.path).copy(p.join(dir.path, fileName));
+
+      if (!mounted) return;
+      setState(() => _photoPath = savedFile.path);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not set photo: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _pickingPhoto = false);
+    }
+  }
+
+  void _removePhoto() {
+    Navigator.of(context).pop();
+    setState(() => _photoPath = null);
+  }
+
+  void _showPhotoOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_rounded),
+              title: const Text('Take a photo'),
+              onTap: () => _pickPhoto(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded),
+              title: const Text('Choose from gallery'),
+              onTap: () => _pickPhoto(ImageSource.gallery),
+            ),
+            if (_photoPath != null)
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded, color: AppColors.danger),
+                title: const Text('Remove photo', style: TextStyle(color: AppColors.danger)),
+                onTap: _removePhoto,
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -51,27 +129,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           padding: const EdgeInsets.all(24),
           children: [
             Center(
-              child: Stack(
-                children: [
-                  const CircleAvatar(
-                    radius: 46,
-                    backgroundColor: AppColors.primaryLight,
-                    child: Icon(Icons.person_rounded, size: 50, color: Colors.white),
-                  ),
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: const BoxDecoration(
-                        color: AppColors.primaryDark,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.edit_rounded, color: Colors.white, size: 16),
+              child: _pickingPhoto
+                  ? const SizedBox(
+                      width: 92,
+                      height: 92,
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    )
+                  : ProfileAvatar(
+                      photoPath: _photoPath,
+                      radius: 46,
+                      onEditTap: _showPhotoOptions,
                     ),
-                  ),
-                ],
-              ),
             ),
             const SizedBox(height: 24),
             LabeledField(

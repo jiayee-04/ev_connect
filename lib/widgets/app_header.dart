@@ -51,7 +51,18 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
               padding: const EdgeInsets.only(right: 4),
               child: InkWell(
                 borderRadius: BorderRadius.circular(20),
-                onTap: () => Navigator.of(context).maybePop(),
+                onTap: () {
+                  final navigator = Navigator.of(context);
+                  if (navigator.canPop()) {
+                    navigator.pop();
+                  } else {
+                    // No previous route on the stack (e.g. this screen was
+                    // reached via a direct/deep link, browser refresh, or
+                    // hot reload) - fall back to Home instead of doing
+                    // nothing.
+                    navigator.pushNamedAndRemoveUntil('/home', (r) => false);
+                  }
+                },
                 child: const Padding(
                   padding: EdgeInsets.all(6),
                   child: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Colors.white),

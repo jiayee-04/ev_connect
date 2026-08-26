@@ -1,3 +1,5 @@
+import 'station.dart';
+
 enum SessionStatus { completed, cancelled, inProgress }
 
 class ChargingSession {
@@ -9,6 +11,12 @@ class ChargingSession {
   final double amount;
   final SessionStatus status;
   final String paymentMethod;
+  // Full station snapshot at the time of charging, so History can offer
+  // a real "Rebook" action later without needing a fresh lookup - same
+  // pattern Favourites uses for stations that came from a live feed.
+  // Nullable so older sessions saved before this field existed (or any
+  // session that genuinely has no station on hand) still deserialize fine.
+  final ChargingStation? station;
 
   ChargingSession({
     required this.stationName,
@@ -19,6 +27,7 @@ class ChargingSession {
     required this.amount,
     required this.status,
     this.paymentMethod = '-',
+    this.station,
   });
 
   Map<String, dynamic> toJson() => {
@@ -30,6 +39,7 @@ class ChargingSession {
         'amount': amount,
         'status': status.name,
         'paymentMethod': paymentMethod,
+        'station': station?.toJson(),
       };
 
   factory ChargingSession.fromJson(Map<String, dynamic> json) => ChargingSession(
@@ -44,5 +54,9 @@ class ChargingSession {
           orElse: () => SessionStatus.completed,
         ),
         paymentMethod: json['paymentMethod'] as String? ?? '-',
+        station: json['station'] != null
+            ? ChargingStation.fromJson(
+                Map<String, dynamic>.from(json['station'] as Map))
+            : null,
       );
 }
