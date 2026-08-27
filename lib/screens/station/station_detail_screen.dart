@@ -6,6 +6,7 @@ import '../../widgets/common_widgets.dart';
 import '../../models/station.dart';
 import '../../services/app_state.dart';
 import '../payment/booking_confirm_screen.dart';
+import '../favourites/favourites_screen.dart';
 
 class StationDetailScreen extends StatefulWidget {
   final ChargingStation station;
@@ -34,17 +35,28 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
     if (!mounted) return;
     setState(() => _isFavourite = nowFavourite);
 
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
+    // Captured before the SnackBar is shown so the "View" action still
+    // works even if this screen gets popped while the SnackBar is up —
+    // rootNavigator ties it to the app's top-level Navigator instead of
+    // this (possibly disposed) screen's context.
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context, rootNavigator: true);
+
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
       SnackBar(
         content: Text(nowFavourite
             ? 'Added ${widget.station.name} to Favourites'
             : 'Removed ${widget.station.name} from Favourites'),
         action: nowFavourite
             ? SnackBarAction(
-                label: 'View',
-                onPressed: () => Navigator.of(context).pushNamed('/favourites'),
-              )
+          label: 'View',
+          onPressed: () {
+            navigator.push(
+              MaterialPageRoute(builder: (_) => const FavouritesScreen()),
+            );
+          },
+        )
             : null,
         duration: const Duration(seconds: 3),
       ),
@@ -164,12 +176,12 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
             onPressed: s.status == StationStatus.offline
                 ? null
                 : () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => BookingConfirmScreen(station: s),
-                      ),
-                    );
-                  },
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => BookingConfirmScreen(station: s),
+                ),
+              );
+            },
             icon: const Icon(Icons.bolt_rounded),
             label: Text(s.status == StationStatus.offline
                 ? 'Station Offline'
