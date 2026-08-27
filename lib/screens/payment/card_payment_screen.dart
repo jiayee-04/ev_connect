@@ -98,7 +98,6 @@ class _CardPaymentScreenState extends State<CardPaymentScreen> {
     final digits = (v ?? '').replaceAll(' ', '');
     if (digits.isEmpty) return 'Card number is required';
     if (digits.length != 16) return 'Card number must be 16 digits';
-    if (!_passesLuhn(digits)) return 'Card number is invalid';
     return null;
   }
 
