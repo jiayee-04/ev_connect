@@ -38,10 +38,6 @@ class AppState {
     return await _migrateFromLocalOrSeed();
   }
 
-  /// Runs once per user: pulls any existing local SharedPreferences data
-  /// into Firestore so nothing is lost when a returning user first opens
-  /// the app on this update. If there's nothing local either, seeds fresh
-  /// defaults (same seeding the old local-only version did).
   Future<Map<String, dynamic>> _migrateFromLocalOrSeed() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -63,9 +59,6 @@ class AppState {
         prefs.getString(_legacyActiveVehicleIdKey) ?? vehicles.first['id'] as String;
 
     // --- Favourites ---
-    // A brand-new user hasn't favourited anything — favourites start
-    // empty, not pre-populated with sample stations they never chose.
-    // Only migrate real favourites that were actually saved locally.
     Map<String, dynamic> favourites = {};
     final rawFavourites = prefs.getStringList(_legacyFavouritesKey);
     if (rawFavourites != null) {
@@ -141,10 +134,7 @@ class AppState {
     await _updateDoc({'activeVehicleId': id});
   }
 
-  /// Inserts [vehicle] if its id isn't already saved, otherwise updates
-  /// the existing entry in place. Used for both "Edit Vehicle" (existing
-  /// id) and "Add Vehicle" (new id) so callers don't need to know which
-  /// case they're in.
+  /// Inserts [vehicle]
   Future<void> saveVehicle(Vehicle vehicle) async {
     final vehicles = await getVehicles();
     final idx = vehicles.indexWhere((v) => v.id == vehicle.id);
@@ -156,10 +146,7 @@ class AppState {
     await _updateDoc({'vehicles': vehicles.map((v) => v.toJson()).toList()});
   }
 
-  /// Removes a vehicle. Refuses to delete the last remaining vehicle —
-  /// the app always needs at least one active vehicle to function. If
-  /// the deleted vehicle was the active one, falls back to whichever
-  /// vehicle is now first.
+  /// Removes a vehicle.
   Future<void> deleteVehicle(String id) async {
     final vehicles = await getVehicles();
     if (vehicles.length <= 1) return;
@@ -175,12 +162,6 @@ class AppState {
   }
 
   // ---------------- Favourites ----------------
-
-  /// Favourites are stored as full station snapshots keyed by id, not
-  /// just a list of ids — a live station fetched from Open Charge Map
-  /// isn't kept anywhere else once you leave the map/list screen, so
-  /// storing only the id would make it impossible to ever show that
-  /// station again on the Favourites screen.
   Future<Map<String, ChargingStation>> _readFavourites() async {
     final data = await _readDoc();
     final raw = Map<String, dynamic>.from(data['favourites'] as Map? ?? {});
@@ -196,18 +177,6 @@ class AppState {
     return map;
   }
 
-  /// Adds or removes exactly one favourite entry via a targeted field-path
-  /// write, rather than reading the whole favourites map, mutating it in
-  /// memory, and writing it all back with `merge: true`.
-  ///
-  /// That "read, mutate, merge-set the whole map" approach looks correct
-  /// but can't actually remove anything: a merge-set is additive for
-  /// nested maps — it only adds/overwrites the keys present in the patch,
-  /// it never deletes a key just because the patch's map is smaller than
-  /// what's already stored. So writing back a favourites map with one
-  /// entry removed silently leaves that entry in Firestore forever; only
-  /// adds ever "worked". Deleting one nested key requires a dotted
-  /// field-path update with `FieldValue.delete()` instead.
   Future<void> _setFavouriteEntry(String stationId, Map<String, dynamic>? stationJson) async {
     if (stationJson == null) {
       try {
@@ -228,16 +197,12 @@ class AppState {
     return map.keys.toSet();
   }
 
-  /// Full favourited station objects, for the Favourites screen to
-  /// actually render — includes live-fetched stations, not just the
-  /// bundled sample set.
   Future<List<ChargingStation>> getFavouriteStations() async {
     final map = await _readFavourites();
     return map.values.toList();
   }
 
-  /// Returns the new favourited state (true = now a favourite) so the
-  /// caller can update its UI without a second read.
+  /// Returns the new favourited state
   Future<bool> toggleFavourite(ChargingStation station) async {
     final map = await _readFavourites();
     final nowFavourite = !map.containsKey(station.id);
@@ -250,10 +215,6 @@ class AppState {
   }
 
   // ---------------- History ----------------
-
-  /// Sessions actually completed in this app, persisted across restarts
-  /// and sorted newest-first. Only real sessions the user has actually
-  /// paid for through the app — no seeded/sample entries mixed in.
   Future<List<ChargingSession>> getHistory() async {
     final data = await _readDoc();
     final raw = (data['history'] as List<dynamic>? ?? []);
