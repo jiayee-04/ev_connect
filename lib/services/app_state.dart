@@ -7,20 +7,6 @@ import '../models/charging_session.dart';
 import '../models/station.dart';
 import 'mock_data.dart';
 
-/// Holds small bits of app state that need to survive app restarts and
-/// sync across devices: the user's vehicle profile, favourite stations,
-/// and charging history from sessions actually completed in the app.
-///
-/// Backed by Cloud Firestore, one document per signed-in user at
-/// users/{uid}/app_state/data — a subcollection, not fields directly on
-/// users/{uid}, so this never collides with whatever profile fields your
-/// auth/signup flow already writes there (email, display name, etc).
-///
-/// The first time a signed-in user has no doc here yet, this migrates
-/// whatever was already saved locally (from the previous SharedPreferences
-/// version of this class) up into Firestore, once, so existing installs
-/// don't lose data when this ships. After that migration runs, local
-/// storage for these keys is no longer read.
 class AppState {
   AppState._();
   static final AppState instance = AppState._();

@@ -64,12 +64,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _pickingPhoto = true);
     try {
       final picker = ImagePicker();
-      // Kept small on purpose: this photo is stored as a base64 string
-      // directly inside the Firestore profile document (no separate
-      // file storage service), which caps a whole document at 1MiB. A
-      // 400x400 JPEG at this quality typically lands well under 100KB
-      // raw, ~130KB once base64-encoded — comfortably inside that limit
-      // even with the rest of the profile doc's fields.
       final picked = await picker.pickImage(
         source: source,
         maxWidth: 400,
@@ -78,8 +72,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
       if (picked == null) return;
 
-      // Copy into permanent app storage so it survives cache clears and
-      // the picker's temp file being deleted.
       final dir = await getApplicationDocumentsDirectory();
       final ext = p.extension(picked.path);
       final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}$ext';
@@ -184,10 +176,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                   child: Row(
                     children: [
-                      // This box's background (AppColors.divider) stays
-                      // light in both themes, so force dark text instead
-                      // of inheriting bodyMedium (Colors.white70 in dark
-                      // mode, which disappears here).
                       Expanded(
                         child: Text(
                           widget.user.email,

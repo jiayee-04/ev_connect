@@ -4,14 +4,8 @@ class Vehicle {
   final String connector;
   final String batteryCapacity;
   final String preferredCharging;
-  /// Manufacturer-rated full-charge range in km. Real apps (and real trip
-  /// planning) need this — battery kWh alone doesn't tell you how far a
-  /// specific car goes, since efficiency (Wh/km) varies a lot by model.
   final double rangeKm;
 
-  /// [id] identifies this vehicle across saves/loads so it can be
-  /// updated or deleted from a multi-vehicle list. Auto-generated when
-  /// not supplied (e.g. when creating a brand-new vehicle in the UI).
   Vehicle({
     String? id,
     required this.name,

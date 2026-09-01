@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-/// EV Connect brand icon (pin + charging pump + road) — the real logo
-/// artwork, trimmed to just the icon with a transparent background so it
-/// drops cleanly into the small header badge at any size.
+/// EV Connect brand icon
 class AppLogoMark extends StatelessWidget {
   final double size;
   final Color? pinColor; // unused now (real artwork has fixed brand colour); kept for API compatibility
@@ -33,11 +31,6 @@ class AppLogoMark extends StatelessWidget {
   }
 }
 
-/// Full lockup: icon + "EVConnect" wordmark + tagline, straight from the
-/// real brand artwork. Its text is baked into the image in the brand's
-/// dark green, so on a dark background (like the splash screen) it sits
-/// inside a white card for contrast, matching how the artwork was
-/// designed to be shown.
 class AppLogoFull extends StatelessWidget {
   final double iconSize;
   final bool showTagline; // kept for API compatibility; tagline is baked into the artwork

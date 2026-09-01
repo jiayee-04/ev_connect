@@ -7,22 +7,12 @@ import 'mock_data.dart';
 import 'location_service.dart';
 
 /// Pulls real charging-station data from Open Charge Map (openchargemap.org)
-/// — a free, open, community-maintained database covering real chargers
-/// worldwide, including Malaysia (ChargEV, Gentari, Shell Recharge, JomCharge
-/// and Tesla destination chargers are all in it).
-///
-/// No paid billing account is required. Get a free client key at
-/// https://openchargemap.org/site/developerinfo and put it below to raise
-/// your rate limit — the API also works at a low rate limit with no key at
-/// all, which is enough for development and demos.
 class OpenChargeMapService {
   OpenChargeMapService._();
   static final OpenChargeMapService instance = OpenChargeMapService._();
 
   static const String _baseUrl = 'https://api.openchargemap.io/v3/poi';
 
-  /// Put your free Open Charge Map client key here before shipping to
-  /// production. Leave blank to use the shared low-rate-limit access.
   static const String apiKey = '8669082e-b293-4797-a264-fb8ae4398f01';
 
   Future<List<ChargingStation>> nearby({
@@ -42,11 +32,6 @@ class OpenChargeMapService {
     );
   }
 
-  /// Fetches every known Malaysian station (unrestricted by radius) so the
-  /// search screen can filter by name/operator/address locally as the user
-  /// types, instead of hitting the network again on every keystroke.
-  /// Distance is still computed from the user's real location so results
-  /// stay honestly sortable even though this isn't a "nearby" query.
   Future<List<ChargingStation>> allForSearch({
     LatLng? center,
     int maxResults = 500,
@@ -94,17 +79,12 @@ class OpenChargeMapService {
     }
   }
 
-  /// Bundled sample stations, but with real distance-from-you recalculated
-  /// (not the stale hardcoded values baked into mock_data.dart) so the
-  /// list/sort is still honest even when the live API is unreachable.
+
   List<ChargingStation> _fallback(LatLng center) {
     final withRealDistance = MockData.stations.map((s) {
       final km = LocationService.instance.distanceKm(center, LatLng(s.latitude, s.longitude));
       return s.copyWith(
         distanceKm: double.parse(km.toStringAsFixed(1)),
-        // Mock stations hand-author freeSlots/totalSlots as a genuine
-        // occupancy split, so (unlike live OCM data) it's honest to expand
-        // that into an occupied/available grid here.
         slots: s.slots.isNotEmpty
             ? s.slots
             : _synthesizeSlotsFromCounts(s.freeSlots, s.totalSlots),
@@ -114,10 +94,6 @@ class OpenChargeMapService {
     return withRealDistance;
   }
 
-  /// Synthesizes a per-slot grid from mock/fallback stations' hand-authored
-  /// freeSlots/totalSlots counts. Only valid where those counts were
-  /// intentionally authored to represent occupancy (i.e. NOT for live OCM
-  /// data, which reports point counts, not occupancy — see _buildSlots).
   List<ChargingSlot> _synthesizeSlotsFromCounts(int freeSlots, int totalSlots) {
     final free = freeSlots.clamp(0, totalSlots);
     return List.generate(totalSlots, (i) {
@@ -128,12 +104,6 @@ class OpenChargeMapService {
     });
   }
 
-  /// OCM's connector titles are free-text and inconsistent across records
-  /// (e.g. "CCS (Type 2)", "Type 2 (Socket Only)", "Type 2 (Tethered
-  /// Connector)"). The app's filter screen only knows a small set of
-  /// canonical labels, so raw titles need to be bucketed into those before
-  /// they're stored - otherwise exact-match filtering (e.g. "CCS2") never
-  /// finds anything.
   String _canonicalConnector(String rawTitle) {
     final t = rawTitle.toLowerCase();
     // Check CCS/Combo before the generic "type 2" check below, since OCM's
@@ -147,11 +117,6 @@ class OpenChargeMapService {
     return rawTitle;
   }
 
-  /// OCM's operator titles are whatever the community entered - legal
-  /// entity names, inconsistent casing, sometimes blank. Map known
-  /// Malaysian CPOs onto the clean brand names the filter screen offers,
-  /// and fall back to the raw (trimmed) title so it's still visible even
-  /// when it isn't one of the known ones.
   String _canonicalOperator(String? rawTitle) {
     final t = rawTitle?.trim() ?? '';
     if (t.isEmpty) return 'Independent';
@@ -174,13 +139,6 @@ class OpenChargeMapService {
     return t;
   }
 
-  /// OCM reports each connector's actual current type directly
-  /// (`CurrentType.Title`, e.g. "AC (Single-Phase)", "AC (Three-Phase)",
-  /// "DC") — this is the real classification, not a guess from the
-  /// connector name. That matters because a connector name alone isn't
-  /// reliable: Type 2 is AC in the overwhelming majority of installs but
-  /// isn't defined to be, and Tesla connectors cover both DC Superchargers
-  /// and AC destination chargers.
   String _chargerType(List<dynamic> connections, List<String> canonicalConnectors) {
     var hasAc = false;
     var hasDc = false;
@@ -194,11 +152,6 @@ class OpenChargeMapService {
     }
 
     if (!hasAc && !hasDc) {
-      // This particular OCM record didn't include current-type data —
-      // fall back to inferring from the connector types themselves.
-      // Type 1/Type 2 are AC in virtually every real Malaysian install;
-      // CCS2, CHAdeMO and GB/T are DC-only by design; Tesla is treated as
-      // DC since Superchargers dominate what OCM lists here.
       hasAc = canonicalConnectors.any((c) => c == 'Type 1' || c == 'Type 2');
       hasDc = canonicalConnectors
           .any((c) => c == 'CCS2' || c == 'CHAdeMO' || c == 'GB/T' || c == 'Tesla');
@@ -210,15 +163,6 @@ class OpenChargeMapService {
     return 'Unknown';
   }
 
-  /// Expands OCM's `Connections` array into individual slot entries. Each
-  /// connection can represent more than one physical port (`Quantity`) and
-  /// can carry its own operational status distinct from the station's
-  /// overall status.
-  ///
-  /// Occupancy (busy vs. free) is NOT something OCM's free API reports, so
-  /// every non-offline port here is marked `available` — never `occupied`.
-  /// Synthesizing a busy/free split from a count (as fallback stations do)
-  /// would misrepresent this as live occupancy when it isn't.
   List<ChargingSlot> _buildSlots(List<dynamic> connections, bool stationIsOperational) {
     final slots = <ChargingSlot>[];
     var index = 1;

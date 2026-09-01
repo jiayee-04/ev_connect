@@ -24,11 +24,7 @@ class FilterScreen extends StatefulWidget {
 }
 
 class _FilterScreenState extends State<FilterScreen> {
-  // Defensive null-aware spreads (`...?`) everywhere here: if `widget.initial`
-  // is ever a StationFilters built by stale/old code (e.g. mid-session hot
-  // reload before a field like `speeds` existed, or a future JSON/prefs
-  // loader that omits a key), these fall back to an empty set instead of
-  // throwing "type 'Null' is not a subtype of type 'Set<String>'".
+
   late Set<String> _connectors = {...?widget.initial.connectors};
   late double _distance = widget.initial.maxDistanceKm;
   late bool _availableOnly = widget.initial.availableOnly;
@@ -38,10 +34,6 @@ class _FilterScreenState extends State<FilterScreen> {
   List<String> get _providerOptions =>
       (widget.availableProviders.toSet().toList()..sort());
 
-  // Built from whatever connector types actually turned up nearby, instead
-  // of a fixed 3-option list — so Type 1 / Tesla / GB/T chargers (all real
-  // OCM connector types) are filterable when they exist, and options don't
-  // show for connector types that aren't near you anyway.
   List<String> get _connectorOptions =>
       (widget.availableConnectors.toSet().toList()..sort());
 

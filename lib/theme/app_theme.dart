@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 /// Central place for every colour, spacing and text style used in the app.
-/// Keeping it here is what gives the whole app a consistent "green EV" look.
 class AppColors {
   AppColors._();
 
@@ -25,11 +24,7 @@ class AppColors {
   static const Color danger = Color(0xFFD84315);
   static const Color busy = Color(0xFFEF6C00);
 
-  // Dark-mode specific tones. Card/input surfaces intentionally stay
-  // light (see AppTheme.darkTheme doc) so the extensive hardcoded
-  // AppColors.textDark text used throughout the app remains legible -
-  // this mirrors the "dark chrome, light content card" pattern the
-  // login/signup/splash screens already use deliberately.
+  // Dark-mode specific tones
   static const Color darkScaffold = Color(0xFF0F1512);
   static const Color darkNavBackground = Color(0xFF17231A);
 }
@@ -141,11 +136,7 @@ class AppTheme {
     );
   }
 
-  /// Real dark theme - see the [AppColors] dark-tones comment above for
-  /// the "dark chrome, light content cards" scoping explanation. This
-  /// genuinely applies (page background, app bar, buttons, default
-  /// unstyled text) and is a real, working ThemeMode.dark, not a cosmetic
-  /// no-op.
+  /// Real dark theme
   static ThemeData get darkTheme {
     return lightTheme.copyWith(
       brightness: Brightness.dark,

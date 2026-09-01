@@ -15,23 +15,13 @@ import '../models/app_user.dart';
 /// fullName and email live directly on the Firebase Auth user record.
 /// phone and the profile photo are both stored in Cloud Firestore at
 /// users/{uid} — the photo as a small base64-encoded string field
-/// rather than a separate file in Cloud Storage, since Storage requires
-/// the pay-as-you-go Blaze plan to enable at all (even within its free
-/// tier), while Firestore works on the free Spark plan. The trade-off:
-/// Firestore caps a whole document at 1MiB, so the photo is resized and
-/// compressed small at capture time (see edit_profile_screen.dart) to
-/// comfortably fit.
 class AuthService {
   AuthService._();
   static final AuthService instance = AuthService._();
 
-  // Old local keys — read only during the one-time migration below, for
-  // any user who already had a phone/photo saved before this update.
   static const _phoneKeyPrefix = 'ev_connect_phone_';
   static const _photoKeyPrefix = 'ev_connect_photo_';
 
-  // Leaves headroom under Firestore's 1MiB document cap for the rest of
-  // the profile doc's fields (phone, etc).
   static const _maxPhotoBytes = 700 * 1024;
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -113,10 +103,7 @@ class AuthService {
   // Password reset
   // ---------------------------------------------------------------------
 
-  /// Sends a reset email. The link opens Firebase's hosted "Reset
-  /// password" page, which has New password + Confirm password fields
-  /// and enforces whatever password policy you set in the Firebase
-  /// console (Authentication → Settings → Password policy).
+  /// Sends a reset email.
   Future<String?> sendPasswordResetEmail(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
@@ -166,9 +153,7 @@ class AuthService {
   }
 
   /// Encodes a local photo file as a data URI so it can live directly in
-  /// the Firestore profile doc. Throws if the file is too large even
-  /// after the picker's own resize/compression, so the caller can show
-  /// the person a clear error instead of a confusing Firestore failure.
+  /// the Firestore profile doc.
   Future<String> _encodePhotoAsDataUri(File file) async {
     final bytes = await file.readAsBytes();
     if (bytes.length > _maxPhotoBytes) {
@@ -178,16 +163,10 @@ class AuthService {
     return 'data:image/jpeg;base64,${base64Encode(bytes)}';
   }
 
-  /// True for a photoPath already saved to Firestore (a data: URI) or,
-  /// for backward compatibility, an old Firebase Storage https:// URL
-  /// from before this switch — neither needs re-encoding.
   bool _isAlreadyEncoded(String photoPath) =>
       photoPath.startsWith('data:') || photoPath.startsWith('http');
 
   Future<bool> isLoggedIn() async {
-    // On app startup, Firebase needs a brief moment to restore a
-    // persisted session from disk. authStateChanges() waits for that
-    // first real value instead of reading currentUser too early.
     final user = await _auth
         .authStateChanges()
         .first
@@ -205,10 +184,7 @@ class AuthService {
     return AuthProvider.email;
   }
 
-  /// Reads the Firestore profile doc, or — for a user who already had
-  /// data saved under the old per-uid SharedPreferences keys — migrates
-  /// it up to Firestore once and returns that instead. New/Google users
-  /// with nothing saved either way get an empty default profile.
+  /// Reads the Firestore profile doc
   Future<Map<String, dynamic>> _readOrMigrateProfile(String uid) async {
     final snap = await _profileDoc(uid).get();
     if (snap.exists && snap.data() != null) return snap.data()!;

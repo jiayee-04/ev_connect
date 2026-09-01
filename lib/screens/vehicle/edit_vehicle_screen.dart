@@ -6,7 +6,6 @@ import '../../models/vehicle.dart';
 import '../../services/app_state.dart';
 
 class EditVehicleScreen extends StatefulWidget {
-  /// The vehicle to edit, or null to add a brand-new one.
   final Vehicle? vehicle;
   const EditVehicleScreen({super.key, this.vehicle});
 

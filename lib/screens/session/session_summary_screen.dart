@@ -3,10 +3,6 @@ import '../../theme/app_theme.dart';
 import '../../models/station.dart';
 import '../payment/payment_method_screen.dart';
 
-/// Shown right after a charging session ends: here's what you actually
-/// used, now pay for it. This is the real-world order of operations -
-/// charge first, pay for what you actually used after - instead of
-/// paying an estimate upfront.
 class SessionSummaryScreen extends StatelessWidget {
   final ChargingStation station;
   final double kwh;
@@ -25,10 +21,6 @@ class SessionSummaryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final noEnergyUsed = kwh <= 0;
     return Scaffold(
-      // This screen's background is always the pale/light colour
-      // regardless of app theme, so its text is pinned to dark colours
-      // below instead of following Theme.of(context) (which would turn
-      // white in dark mode and disappear against this light background).
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: Padding(
@@ -117,9 +109,6 @@ class SessionSummaryScreen extends StatelessWidget {
       children: [
         Text(label, style: const TextStyle(color: AppColors.textMuted)),
         const SizedBox(width: 12),
-        // Expanded + ellipsis so a long value (e.g. a long station name)
-        // wraps/truncates within the card instead of overflowing off
-        // the edge of the screen.
         Expanded(
           child: Text(
             value,

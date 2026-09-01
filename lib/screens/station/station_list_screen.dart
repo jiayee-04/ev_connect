@@ -19,17 +19,12 @@ class StationListScreen extends StatefulWidget {
 }
 
 class _StationListScreenState extends State<StationListScreen> {
-  // Kept in one place because it has to match the radius actually passed to
-  // OpenChargeMapService.nearby() below — otherwise the filter screen's
-  // distance slider can offer a range with zero fetched stations in it.
+
   static const double kNearbyRadiusKm = 25;
 
   bool _showMap = false;
   StationFilters _filters = StationFilters.initial(kNearbyRadiusKm);
 
-  // Real nearby stations from GPS + Open Charge Map, the same live source
-  // the Map tab uses — the List used to just filter the 5-7 bundled mock
-  // stations regardless of where you actually were, which made no sense.
   List<ChargingStation> _stations = MockData.stations;
   bool _loading = true;
 
@@ -176,8 +171,6 @@ class _StationListScreenState extends State<StationListScreen> {
         ),
       );
     }
-    // Nearest 10 real, distance-sorted stations — matches what the driver
-    // asked for instead of an arbitrary bundled list.
     final nearest = stations.take(10).toList();
     return RefreshIndicator(
       onRefresh: _loadNearby,
@@ -259,8 +252,6 @@ class _ToggleButton extends StatelessWidget {
   }
 }
 
-/// Simple value object carrying the current filter selections between
-/// the station list and filter screen.
 class StationFilters {
   final Set<String> connectors;
   final double maxDistanceKm;
@@ -276,9 +267,6 @@ class StationFilters {
     this.speeds = const {},
   });
 
-  // Defaults to the full fetched radius so "no filter applied" really means
-  // no filter applied, instead of silently hiding stations between the old
-  // hardcoded 20km default and the 25km radius that's actually fetched.
   factory StationFilters.initial(double defaultRadiusKm) => StationFilters(
         connectors: {},
         maxDistanceKm: defaultRadiusKm,

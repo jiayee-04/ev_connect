@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Drives the app's real Locale. A ValueNotifier so the MaterialApp
-/// rebuilds live when Settings changes it, and persisted so the choice
-/// survives app restarts.
 class LocaleController extends ValueNotifier<Locale> {
   LocaleController._() : super(const Locale('en'));
   static final LocaleController instance = LocaleController._();

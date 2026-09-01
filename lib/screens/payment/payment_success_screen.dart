@@ -10,11 +10,6 @@ import '../../services/app_state.dart';
 import '../../services/notification_service.dart';
 import '../../services/charging_session_manager.dart';
 
-/// The real final step of the flow: payment for the ACTUAL amount used,
-/// confirmed after charging - not an upfront estimate. This is where the
-/// session is written to Charging History (once it's actually paid for,
-/// which matches how a real receipt works) and where the "Payment
-/// Successful" notification fires for real.
 class PaymentSuccessScreen extends StatefulWidget {
   final ChargingStation station;
   final double amount;
@@ -75,9 +70,6 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
       message:
           'RM ${widget.amount.toStringAsFixed(2)} charged via ${widget.method} for ${widget.station.name}.',
     );
-
-    // The session's numbers have now been paid for and recorded -
-    // clear the shared manager so the next "start charging" begins clean.
     ChargingSessionManager.instance.reset();
   }
 
@@ -85,9 +77,6 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     return Scaffold(
-      // Always the pale/light background regardless of app theme - see
-      // the title Text below for why its color is pinned rather than
-      // theme-derived.
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: Padding(
@@ -106,11 +95,6 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
               ),
               const SizedBox(height: 20),
               Text('Payment Successful',
-                  // This screen's background is always the pale/light
-                  // colour regardless of app theme (see below), so the
-                  // title is pinned to a dark colour instead of
-                  // Theme.of(context).textTheme.headlineSmall, which
-                  // turns white in dark mode and disappears here.
                   style: const TextStyle(
                       fontWeight: FontWeight.w800,
                       fontSize: 22,
@@ -175,9 +159,6 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
       children: [
         Text(label, style: const TextStyle(color: AppColors.textMuted)),
         const SizedBox(width: 12),
-        // Expanded + ellipsis so a long value (e.g. a long station name)
-        // wraps/truncates within the card instead of overflowing off
-        // the edge of the screen.
         Expanded(
           child: Text(
             value,

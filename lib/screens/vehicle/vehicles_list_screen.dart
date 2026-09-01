@@ -5,10 +5,6 @@ import '../../models/vehicle.dart';
 import '../../services/app_state.dart';
 import 'edit_vehicle_screen.dart';
 
-/// Full list of the user's saved vehicles. Tapping a vehicle makes it
-/// the active one (the one used for charging/routing elsewhere in the
-/// app); each vehicle also has its own edit and delete actions, plus an
-/// "Add Vehicle" entry point to save another car.
 class VehiclesListScreen extends StatefulWidget {
   const VehiclesListScreen({super.key});
 
@@ -19,9 +15,6 @@ class VehiclesListScreen extends StatefulWidget {
 class _VehiclesListScreenState extends State<VehiclesListScreen> {
   List<Vehicle>? _vehicles;
   String? _activeId;
-  // Set whenever we make (or discover) a change that the previous
-  // screen should know about, so we can tell MyVehicleScreen to refresh
-  // when the user backs out of here.
   bool _changed = false;
 
   @override

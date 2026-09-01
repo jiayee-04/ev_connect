@@ -8,10 +8,6 @@ import '../../services/charging_session_manager.dart';
 import '../session/charging_session_screen.dart';
 import '../session/connector_detect_screen.dart';
 
-/// Real EV charging doesn't ask you to pre-pay an estimate before you've
-/// even plugged in - you set roughly where your battery is and how far
-/// you want to charge, then start. What it actually costs is only known
-/// once you stop, and that's when payment happens.
 class BookingConfirmScreen extends StatefulWidget {
   final ChargingStation station;
   const BookingConfirmScreen({super.key, required this.station});

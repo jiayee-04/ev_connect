@@ -3,9 +3,7 @@ import 'charging_slot.dart';
 
 enum StationStatus { available, busy, offline }
 
-/// Where a station record came from. Real apps blend a live network feed
-/// with community-submitted corrections, and are honest with the user
-/// about which one they're looking at.
+/// Where a station record came from.
 enum StationSource { live, community, mock }
 
 class ChargingStation {
@@ -29,8 +27,8 @@ class ChargingStation {
   final bool isOpen24Hours;
   final List<String> amenities;
   final StationSource source;
-  final DateTime? lastVerified; // community "last confirmed working" stamp
-  final List<ChargingSlot> slots; // per-port status; empty if unavailable
+  final DateTime? lastVerified;
+  final List<ChargingSlot> slots;
 
   const ChargingStation({
     required this.id,
@@ -79,9 +77,7 @@ class ChargingStation {
     }
   }
 
-  /// Rough charge-time estimate shown before booking, the way real apps
-  /// (ChargEV, PlugShare, Gentari) surface "how long will this actually
-  /// take" instead of leaving the user to guess.
+  /// Rough charge-time estimate shown before booking
   String estimateTimeFor(double kwhNeeded) {
     if (maxPowerKw <= 0) return '—';
     final hours = kwhNeeded / maxPowerKw;

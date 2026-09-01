@@ -3,14 +3,6 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/app_notification.dart';
 
-/// Fires real notifications for real events - no hardcoded example list.
-/// Every call to [notify] does two things:
-///  1. Saves the notification to persisted storage, read by the
-///     Notifications screen (so it's there even if the OS notification
-///     was dismissed or the app was in the foreground when it fired).
-///  2. Shows an actual system-tray notification via
-///     flutter_local_notifications - a real OS notification, not a
-///     simulated in-app-only banner.
 class NotificationService {
   NotificationService._();
   static final NotificationService instance = NotificationService._();
@@ -21,10 +13,6 @@ class NotificationService {
   int _nextOsId = 1000;
   bool _initialized = false;
 
-  /// Call once, before runApp(). Sets up the notification channel and
-  /// (on Android 13+) requests the runtime notification permission -
-  /// without this, Android silently drops notifications on newer OS
-  /// versions.
   Future<void> init() async {
     if (_initialized) return;
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -73,10 +61,6 @@ class NotificationService {
       );
       await _plugin.show(_nextOsId++, title, message, details);
     } catch (_) {
-      // OS notification permission not granted / platform not set up yet
-      // (e.g. Android manifest not configured after `flutter create .`).
-      // The in-app notification was already saved above regardless, so
-      // nothing is lost - it'll show correctly on the Notifications screen.
     }
   }
 
@@ -94,8 +78,6 @@ class NotificationService {
         .map((s) => AppNotification.fromJson(Map<String, dynamic>.from(jsonDecode(s))))
         .toList();
     if (list.isEmpty) {
-      // First run: seed a single real welcome notification so the screen
-      // isn't confusingly blank before the driver has done anything yet.
       final welcome = AppNotification(
         id: 'welcome',
         kind: NotifKind.system,

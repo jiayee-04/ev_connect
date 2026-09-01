@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Drives the app's real ThemeMode. A ValueNotifier so the MaterialApp
-/// (and anything else that cares) can rebuild live the moment Settings
-/// changes it, and persisted so the choice survives app restarts.
 class ThemeController extends ValueNotifier<ThemeMode> {
   ThemeController._() : super(ThemeMode.light);
   static final ThemeController instance = ThemeController._();

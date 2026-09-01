@@ -19,17 +19,11 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
 
   final _controller = TextEditingController();
 
-  // No seeded/fake history — a new user starts with an empty list until
-  // they actually search for something.
   List<String> _recent = [];
   bool _loadingRecent = true;
 
   static const _popular = ['Tesla Supercharger', 'Gentari Pavilion', 'Petronas EV Charger'];
 
-  // Every known Malaysian station (from Open Charge Map, with a bundled
-  // fallback baked in at the service level if the API is unreachable),
-  // fetched once and filtered locally as the user types so search feels
-  // instant instead of round-tripping to the network per keystroke.
   List<ChargingStation> _allStations = [];
   bool _loadingStations = true;
   bool _stationsFailed = false;
@@ -72,8 +66,6 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
         _allStations = stations;
         _loadingStations = false;
       });
-      // If the user already typed something while stations were loading,
-      // run the search now that data is available.
       if (_controller.text.trim().isNotEmpty) {
         _search(_controller.text);
       }

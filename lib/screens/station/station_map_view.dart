@@ -7,10 +7,7 @@ import '../../services/location_service.dart';
 import '../../services/open_charge_map_service.dart';
 import 'station_detail_screen.dart';
 
-/// Real, working map of nearby chargers — OpenStreetMap tiles (free, no API
-/// key) with live pins pulled from Open Charge Map, falling back to bundled
-/// sample stations if the device is offline. Tapping a pin shows a mini
-/// preview card the driver can tap through to full details and booking.
+/// Real, working map of nearby chargers
 class StationMapView extends StatefulWidget {
   final List<ChargingStation> fallbackStations;
   const StationMapView({super.key, required this.fallbackStations});

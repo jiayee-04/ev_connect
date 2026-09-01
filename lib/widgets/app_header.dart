@@ -2,11 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'app_logo.dart';
 
-/// Consistent header used on every screen: the EV Connect logo always sits
-/// top-left, with the page title right beside it. An optional back chevron
-/// appears to the left of the title (not in place of the logo), so the logo
-/// position never moves between screens. An optional trailing action
-/// (e.g. notifications, favourite, search) sits on the right.
+/// Consistent header used on every screen
 class AppHeader extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final bool showBack;

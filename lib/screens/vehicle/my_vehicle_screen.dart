@@ -41,8 +41,6 @@ class _MyVehicleScreenState extends State<MyVehicleScreen> {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const VehiclesListScreen()),
     );
-    // The active vehicle (or the saved list) may have changed while
-    // the list screen was open, so always refresh on return.
     _load();
   }
 

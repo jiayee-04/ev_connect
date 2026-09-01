@@ -37,10 +37,6 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
     if (!mounted) return;
     setState(() => _isFavourite = nowFavourite);
 
-    // Captured before the SnackBar is shown so the "View" action still
-    // works even if this screen gets popped while the SnackBar is up —
-    // rootNavigator ties it to the app's top-level Navigator instead of
-    // this (possibly disposed) screen's context.
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context, rootNavigator: true);
 
@@ -168,8 +164,6 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          // Real apps let the driver estimate cost/time before committing —
-          // small but genuinely useful "will this fit my stop" calculator.
           Card(
             color: AppColors.primaryPale,
             child: Padding(
@@ -214,10 +208,6 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
     );
   }
 
-  /// If the station exposes a per-slot grid, the user must pick an
-  /// available one before starting — you can't charge on a port that
-  /// doesn't exist or is occupied/offline. Stations without slot data
-  /// (older/mock records) fall back to the old aggregate-only behavior.
   bool _canStartCharging(ChargingStation s) {
     if (s.slots.isEmpty) return true;
     if (_selectedSlotIndex == null) return false;
@@ -235,9 +225,6 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
   }
 
   Future<void> _openExternalNavigation(ChargingStation s) async {
-    // Hands off to the user's installed maps app for real turn-by-turn —
-    // exactly what PlugShare / ChargEV / Gentari do rather than building
-    // their own driving directions.
     final uri = Uri.parse(
       'https://www.google.com/maps/dir/?api=1&destination=${s.latitude},${s.longitude}',
     );

@@ -1,15 +1,10 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
-/// Wraps device GPS access. Every real charging-station app needs this to
-/// centre the map, sort stations by distance, and know when the driver has
-/// actually arrived at a station (for auto-starting a session).
 class LocationService {
   LocationService._();
   static final LocationService instance = LocationService._();
 
-  /// Kuala Lumpur city centre — used whenever GPS is unavailable/denied so
-  /// the map always has something sensible to show instead of failing.
   static const LatLng fallback = LatLng(3.1390, 101.6869);
 
   Future<LatLng> getCurrentLatLng() async {

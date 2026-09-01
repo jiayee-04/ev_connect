@@ -4,9 +4,9 @@ class AppUser {
   final String fullName;
   final String email;
   final String phone;
-  final String? password; // null for Google/Apple accounts - no local password
+  final String? password;
   final AuthProvider provider;
-  final String? photoPath; // local file path of the profile picture, if set
+  final String? photoPath;
 
   AppUser({
     required this.fullName,

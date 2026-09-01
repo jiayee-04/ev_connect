@@ -12,11 +12,7 @@ import '../../services/geocoding_service.dart';
 import '../station/station_detail_screen.dart';
 import 'location_picker_screen.dart';
 
-/// Real-world route planning: enter (or pin on a map) where you're
-/// starting and where you're going, and this works out whether your EV
-/// can actually make the trip on a full charge, how much energy it'll
-/// take, and — if it can't make it in one go — how many stops you'd
-/// need and where.
+/// Real-world route planning
 class RoutePlannerScreen extends StatefulWidget {
   const RoutePlannerScreen({super.key});
 
@@ -37,13 +33,8 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
   bool _planning = false;
   String? _error;
 
-  // A safety reserve real drivers (and real apps) keep in hand — nobody
-  // plans to arrive on 0%.
+
   static const double _reserve = 0.15;
-  // Straight-line ("as the crow flies") distance undercounts real driving
-  // distance, since roads aren't straight — this app has no paid routing
-  // API, so it applies a standard road-distance correction factor instead
-  // of pretending the straight-line number is the real trip length.
   static const double _roadDistanceFactor = 1.3;
 
   static const Map<String, double> _commonRoutes = {
@@ -108,9 +99,6 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
     });
   }
 
-  /// Resolves a text field + optional picked point into real coordinates.
-  /// Priority: an explicitly-picked map point > "My Location" via GPS >
-  /// geocoding whatever was typed.
   Future<LatLng?> _resolve({
     required LatLng? picked,
     required String typed,
@@ -153,15 +141,9 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
         LocationService.instance.distanceKm(from, to);
     final distance = straightLineKm * _roadDistanceFactor;
 
-    // Energy needed for the whole trip, derived from this vehicle's real
-    // efficiency (its rated range implies a kWh-per-km figure) rather
-    // than a generic guess.
     final kwhPerKm = vehicle.batteryCapacityKwh / vehicle.rangeKm;
     final kwhNeeded = distance * kwhPerKm;
 
-    // Step through the trip: drive until the reserve would be hit, then
-    // "stop" and top back up to a full usable charge, repeating until
-    // the remaining distance fits in what's left in the battery.
     final reserveKm = vehicle.rangeKm * _reserve;
     final usableFullRange = vehicle.rangeKm - reserveKm;
     double usableRangeLeft = vehicle.rangeKm * (_currentCharge / 100) - reserveKm;
@@ -176,10 +158,6 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
     final arrivalUsableKm = (usableRangeLeft - distanceLeft).clamp(0, usableFullRange);
     final arrivalPct = (((arrivalUsableKm + reserveKm) / vehicle.rangeKm) * 100).clamp(0, 100);
 
-    // Suggested stations along the way — in production these would be
-    // real waypoint-matched stations from a routing API; here we surface
-    // the fastest chargers on the network as a clearly-labelled
-    // approximation.
     final suggestions = List<ChargingStation>.from(MockData.stations)
       ..sort((a, b) => b.maxPowerKw.compareTo(a.maxPowerKw));
     final stops = suggestions.take(stopsNeeded).toList();

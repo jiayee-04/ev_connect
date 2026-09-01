@@ -1,9 +1,5 @@
 import '../models/station.dart';
 
-/// Static/demo data standing in for the government open-data feed
-/// (charging station locations, operators, availability) mentioned
-/// in the project brief. Replace [MockData.stations] with a real API
-/// call (e.g. to data.gov.my or an operator's API) when ready.
 class MockData {
   MockData._();
 

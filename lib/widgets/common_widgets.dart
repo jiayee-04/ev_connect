@@ -5,8 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 
-/// A pill-shaped text field with a label above it, matching the
-/// reference design's rounded green input style.
 class LabeledField extends StatelessWidget {
   final String label;
   final TextEditingController controller;
@@ -43,8 +41,6 @@ class LabeledField extends StatelessWidget {
         Text(label,
             style: TextStyle(
                 fontWeight: FontWeight.w700,
-                // Labels sit on the scaffold, which DOES change with
-                // theme brightness, so this one should follow the theme.
                 color: Theme.of(context).brightness == Brightness.dark
                     ? Colors.white
                     : AppColors.textDark)),
@@ -56,10 +52,6 @@ class LabeledField extends StatelessWidget {
           obscureText: obscureText,
           inputFormatters: inputFormatters,
           maxLines: maxLines,
-          // The input surface (fillColor) intentionally stays light in
-          // both themes, so the typed text must stay dark regardless of
-          // theme brightness instead of inheriting textTheme.bodyLarge
-          // (which turns white in dark mode and disappears).
           style: const TextStyle(color: AppColors.textDark),
           decoration: InputDecoration(
             suffixIcon: suffixIcon,
@@ -130,14 +122,6 @@ class RoundedActionButton extends StatelessWidget {
   }
 }
 
-/// Circular profile picture. Shows the user's photo when [photoPath] is
-/// set — a local file (mid-edit, not yet saved), a data: URI (the saved
-/// photo, embedded directly in the Firestore profile doc), or an
-/// https:// URL (kept only for backward compatibility with any photo
-/// uploaded before the switch away from Cloud Storage) — otherwise
-/// falls back to the default person icon. Pass [onEditTap] to show a
-/// small pencil badge in the corner that the user can tap to change the
-/// picture.
 class ProfileAvatar extends StatelessWidget {
   final String? photoPath;
   final double radius;
@@ -181,9 +165,7 @@ class ProfileAvatar extends StatelessWidget {
           onBackgroundImageError: image == null
               ? null
               : (_, __) {
-                  // e.g. a stale/unreachable legacy network URL —
-                  // CircleAvatar has no built-in fallback, so this just
-                  // prevents an uncaught error.
+                  // e.g. a stale/unreachable legacy network URL
                 },
           child: image == null
               ? Icon(Icons.person_rounded, size: radius * 1.1, color: Colors.white)
@@ -258,8 +240,6 @@ class SectionTitle extends StatelessWidget {
   }
 }
 
-/// "or continue with" divider + Google button, shared by Login and
-/// Signup so both stay visually and behaviourally identical.
 class SocialSignInButtons extends StatelessWidget {
   final bool loading;
   final VoidCallback onGoogleTap;
@@ -300,8 +280,6 @@ class SocialSignInButtons extends StatelessWidget {
   }
 }
 
-/// Simple 4-colour "G" glyph so the Google button reads correctly without
-/// bundling Google's actual brand SVG asset.
 class _GoogleGlyph extends StatelessWidget {
   const _GoogleGlyph();
 

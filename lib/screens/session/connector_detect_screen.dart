@@ -5,12 +5,6 @@ import '../../models/station.dart';
 import '../../services/charging_session_manager.dart';
 import 'charging_session_screen.dart';
 
-/// Shown right after the user taps "Start Charging" and before the live
-/// session screen begins - simulates plugging the connector into the
-/// vehicle and detecting it. There's no real hardware to talk to here,
-/// so this always "succeeds" after a short delay purely for pacing and
-/// feel. If a real connector-detect call (BLE/OCPP/etc.) is added later,
-/// swap the body of [_run] for that instead of the fixed delays below.
 class ConnectorDetectScreen extends StatefulWidget {
   final ChargingStation station;
   final double batteryCapacityKwh;
@@ -30,9 +24,6 @@ class ConnectorDetectScreen extends StatefulWidget {
 }
 
 class _ConnectorDetectScreenState extends State<ConnectorDetectScreen> {
-  // Tune these to speed up/slow down the simulated detection. Kept well
-  // above 0ms on purpose - an instant flash wouldn't read as "detecting"
-  // to the user even though nothing real is being checked.
   static const _connectingDuration = Duration(milliseconds: 1600);
   static const _connectedHoldDuration = Duration(milliseconds: 900);
 

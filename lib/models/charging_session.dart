@@ -11,16 +11,7 @@ class ChargingSession {
   final double amount;
   final SessionStatus status;
   final String paymentMethod;
-  // Full station snapshot at the time of charging, so History can offer
-  // a real "Rebook" action later without needing a fresh lookup - same
-  // pattern Favourites uses for stations that came from a live feed.
-  // Nullable so older sessions saved before this field existed (or any
-  // session that genuinely has no station on hand) still deserialize fine.
   final ChargingStation? station;
-  // Name of the vehicle active at the time of this session, snapshotted
-  // (like station) rather than looked up live - so History still shows
-  // the right vehicle even if it's later renamed or removed. Nullable
-  // for the same reason as station: older sessions won't have one.
   final String? vehicleName;
 
   ChargingSession({

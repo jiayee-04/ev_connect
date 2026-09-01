@@ -4,16 +4,6 @@ import '../models/station.dart';
 import '../models/app_notification.dart';
 import 'notification_service.dart';
 
-/// Runs the live charging simulation independent of any screen's widget
-/// tree - this is what makes "leave the charging screen and keep
-/// charging in the background" actually work. Any screen can watch it
-/// with `AnimatedBuilder(animation: ChargingSessionManager.instance, ...)`
-/// since it's a ChangeNotifier (a Listenable), and it keeps ticking
-/// regardless of which screen is currently on top.
-///
-/// Real-world model: post-paid, the way charging actually works. You
-/// start charging, it tracks live energy/cost as it goes, and payment
-/// only happens after you stop - not before.
 class ChargingSessionManager extends ChangeNotifier {
   ChargingSessionManager._();
   static final ChargingSessionManager instance = ChargingSessionManager._();
@@ -28,8 +18,6 @@ class ChargingSessionManager extends ChangeNotifier {
   bool isActive = false;
   bool targetReached = false;
 
-  // 1 simulated minute per real second - a session completes in a
-  // demo-friendly amount of time instead of literally taking 40+ minutes.
   static const _tickEvery = Duration(seconds: 1);
   static const _simulatedMinutesPerTick = 1;
 
@@ -94,10 +82,6 @@ class ChargingSessionManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Stops the session (if still running) and returns the final result.
-  /// Does NOT clear the session's data - screens navigated to right after
-  /// stopping (like the payment flow) still need to read the final
-  /// numbers, so [reset] is called explicitly once payment is done.
   ({ChargingStation station, double kwh, double cost, int minutes}) stop() {
     _ticker?.cancel();
     final wasActive = isActive;

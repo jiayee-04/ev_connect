@@ -5,16 +5,13 @@ import '../../theme/app_theme.dart';
 import '../../widgets/app_header.dart';
 import '../../services/location_service.dart';
 
-/// Result of picking a location: the coordinates plus a readable label.
 class PickedLocation {
   final LatLng point;
   final String label;
   const PickedLocation({required this.point, required this.label});
 }
 
-/// Lets the driver drop a pin on a real map instead of only typing a
-/// place name — useful when the destination doesn't have a clean
-/// address (a specific mall entrance, a friend's housing area, etc).
+/// Lets the driver drop a pin on a real map
 class LocationPickerScreen extends StatefulWidget {
   final String title;
   final LatLng? initial;

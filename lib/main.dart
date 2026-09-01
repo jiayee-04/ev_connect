@@ -24,13 +24,7 @@ WidgetsFlutterBinding.ensureInitialized();
 await Firebase.initializeApp( 
 options: DefaultFirebaseOptions.currentPlatform, 
 );
-// Sets up the notification channel and requests the runtime permission
-// (Android 13+ / iOS) up front, so real system notifications can fire
-// the first time a charging session starts.
 NotificationService.instance.init();
-// Load the driver's saved dark-mode / language choice before the first
-// frame, so the app opens already in the right mode instead of
-// flashing light-mode/English first.
 await ThemeController.instance.load();
 await LocaleController.instance.load();
 runApp(const EvConnectApp());

@@ -3,11 +3,6 @@ import '../../theme/app_theme.dart';
 import '../../services/charging_session_manager.dart';
 import 'session_summary_screen.dart';
 
-/// Live charging session — watches [ChargingSessionManager], the shared,
-/// screen-independent ticker. Leaving this screen (via the minimize
-/// button or the device back gesture) does NOT stop charging - the
-/// manager keeps running, and Home shows a live "Charging in progress"
-/// banner the driver can tap to come back here at any time.
 class ChargingSessionScreen extends StatefulWidget {
   const ChargingSessionScreen({super.key});
 
@@ -18,12 +13,6 @@ class ChargingSessionScreen extends StatefulWidget {
 class _ChargingSessionScreenState extends State<ChargingSessionScreen> {
   final _manager = ChargingSessionManager.instance;
 
-  // Set right before we intentionally stop the session and navigate to
-  // the summary/payment screen. stop() sets isActive = false and notifies
-  // listeners BEFORE the navigation completes, which would otherwise make
-  // this screen's own "nothing active, bounce back" logic below fire and
-  // pop the summary screen we just pushed. This flag tells that logic to
-  // stand down since we're already leaving on purpose.
   bool _leaving = false;
 
   void _minimize() {
@@ -79,12 +68,6 @@ class _ChargingSessionScreenState extends State<ChargingSessionScreen> {
       builder: (context, _) {
         final station = _manager.station;
         if (!_leaving && (station == null || !_manager.isActive)) {
-          // Nothing active (e.g. deep-linked here with no session) -
-          // just bounce back rather than showing a broken screen.
-          // Skipped while _leaving is true: stop() sets isActive = false
-          // and notifies listeners before pushReplacement finishes, and
-          // without this guard this same check would fire during that
-          // window and pop the summary/payment screen we just pushed.
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) Navigator.of(context).pop();
           });
