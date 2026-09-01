@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../theme/app_theme.dart';
 import '../../models/station.dart';
+import '../../models/vehicle.dart';
 import '../../models/charging_session.dart';
 import '../../models/app_notification.dart';
 import '../../services/app_state.dart';
@@ -52,7 +53,10 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
     if (_saved) return;
     _saved = true;
 
+    final Vehicle activeVehicle = await AppState.instance.getVehicle();
+
     final session = ChargingSession(
+      station: widget.station,
       stationName: widget.station.name,
       location: widget.station.address,
       date: DateTime.now(),
@@ -61,6 +65,7 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
       amount: widget.amount,
       status: SessionStatus.completed,
       paymentMethod: widget.method,
+      vehicleName: activeVehicle.name,
     );
     await AppState.instance.addHistoryEntry(session);
 
@@ -80,6 +85,9 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     return Scaffold(
+      // Always the pale/light background regardless of app theme - see
+      // the title Text below for why its color is pinned rather than
+      // theme-derived.
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: Padding(
@@ -98,7 +106,15 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
               ),
               const SizedBox(height: 20),
               Text('Payment Successful',
-                  style: Theme.of(context).textTheme.headlineSmall),
+                  // This screen's background is always the pale/light
+                  // colour regardless of app theme (see below), so the
+                  // title is pinned to a dark colour instead of
+                  // Theme.of(context).textTheme.headlineSmall, which
+                  // turns white in dark mode and disappears here.
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 22,
+                      color: AppColors.textDark)),
               const SizedBox(height: 6),
               const Text('Thanks for charging with EV Connect.',
                   style: TextStyle(color: AppColors.textMuted)),
@@ -155,15 +171,26 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
 
   Widget _row(String label, String value, {bool emphasize = false}) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: const TextStyle(color: AppColors.textMuted)),
-        Text(value,
+        const SizedBox(width: 12),
+        // Expanded + ellipsis so a long value (e.g. a long station name)
+        // wraps/truncates within the card instead of overflowing off
+        // the edge of the screen.
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: emphasize ? 18 : 14,
               color: emphasize ? AppColors.primaryDark : AppColors.textDark,
-            )),
+            ),
+          ),
+        ),
       ],
     );
   }

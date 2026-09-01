@@ -40,7 +40,7 @@ class AppFooter extends StatelessWidget {
         BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Home'),
         BottomNavigationBarItem(icon: Icon(Icons.ev_station_rounded), label: 'Stations'),
         BottomNavigationBarItem(icon: Icon(Icons.directions_car_rounded), label: 'Vehicle'),
-        BottomNavigationBarItem(icon: Icon(Icons.notifications_rounded), label: 'Alerts'),
+        BottomNavigationBarItem(icon: Icon(Icons.notifications_rounded), label: 'Notifications'),
         BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profile'),
       ],
     );

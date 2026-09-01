@@ -17,6 +17,11 @@ class ChargingSession {
   // Nullable so older sessions saved before this field existed (or any
   // session that genuinely has no station on hand) still deserialize fine.
   final ChargingStation? station;
+  // Name of the vehicle active at the time of this session, snapshotted
+  // (like station) rather than looked up live - so History still shows
+  // the right vehicle even if it's later renamed or removed. Nullable
+  // for the same reason as station: older sessions won't have one.
+  final String? vehicleName;
 
   ChargingSession({
     required this.stationName,
@@ -28,6 +33,7 @@ class ChargingSession {
     required this.status,
     this.paymentMethod = '-',
     this.station,
+    this.vehicleName,
   });
 
   Map<String, dynamic> toJson() => {
@@ -40,6 +46,7 @@ class ChargingSession {
         'status': status.name,
         'paymentMethod': paymentMethod,
         'station': station?.toJson(),
+        'vehicleName': vehicleName,
       };
 
   factory ChargingSession.fromJson(Map<String, dynamic> json) => ChargingSession(
@@ -58,5 +65,6 @@ class ChargingSession {
             ? ChargingStation.fromJson(
                 Map<String, dynamic>.from(json['station'] as Map))
             : null,
+        vehicleName: json['vehicleName'] as String?,
       );
 }

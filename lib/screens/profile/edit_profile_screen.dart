@@ -152,7 +152,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Email', style: TextStyle(fontWeight: FontWeight.w700)),
+                Text('Email',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      // Sits on the scaffold, so follow theme brightness.
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white
+                          : AppColors.textDark,
+                    )),
                 const SizedBox(height: 8),
                 Container(
                   width: double.infinity,
@@ -163,7 +170,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                   child: Row(
                     children: [
-                      Expanded(child: Text(widget.user.email)),
+                      // This box's background (AppColors.divider) stays
+                      // light in both themes, so force dark text instead
+                      // of inheriting bodyMedium (Colors.white70 in dark
+                      // mode, which disappears here).
+                      Expanded(
+                        child: Text(
+                          widget.user.email,
+                          style: const TextStyle(color: AppColors.textDark),
+                        ),
+                      ),
                       const Icon(Icons.lock_outline_rounded, size: 16, color: AppColors.textMuted),
                     ],
                   ),

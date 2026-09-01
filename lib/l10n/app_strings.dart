@@ -5,12 +5,12 @@ class AppStrings {
   AppStrings._();
 
   static const Map<String, String> _values = {
-    'nav_home': 'Home',
+    'nav_home': 'EV Connect',
     'nav_stations': 'Stations',
     'nav_vehicle': 'Vehicle',
-    'nav_alerts': 'Alerts',
+    'nav_alerts': 'Notifications',
     'nav_profile': 'Profile',
-    'home_title': 'Home',
+    'home_title': 'EV Connect',
     'quick_charging_station': 'Charging\nStation',
     'quick_favourites': 'Favourites',
     'quick_charging_history': 'Charging\nHistory',

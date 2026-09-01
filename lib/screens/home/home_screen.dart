@@ -6,6 +6,9 @@ import '../../widgets/app_footer.dart';
 import '../../widgets/common_widgets.dart';
 import '../../services/mock_data.dart';
 import '../../services/charging_session_manager.dart';
+import '../../services/location_service.dart';
+import '../../services/open_charge_map_service.dart';
+import '../../models/station.dart';
 import '../../l10n/app_strings.dart';
 import '../station/station_detail_screen.dart';
 import '../route/route_planner_screen.dart';
@@ -23,19 +26,39 @@ class _HomeScreenState extends State<HomeScreen> {
   int _adIndex = 0;
   Timer? _timer;
 
+  // Real nearby stations from GPS + Open Charge Map, same source
+  // station_list_screen uses - previously this just showed the first 3
+  // bundled mock stations regardless of where the device actually was.
+  List<ChargingStation> _nearby = [];
+  bool _loadingNearby = true;
+
   @override
   void initState() {
     super.initState();
+    _loadNearby();
     // Auto-slide the ad carousel every 4 seconds - this is the "advertisement
     // space" that replaces the static banner, used to generate ad income.
     _timer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (!mounted) return;
-      _adIndex = (_adIndex + 1) % MockData.ads.length;
+      setState(() => _adIndex = (_adIndex + 1) % MockData.ads.length);
       _adController.animateToPage(
         _adIndex,
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeInOut,
       );
+    });
+  }
+
+  Future<void> _loadNearby() async {
+    setState(() => _loadingNearby = true);
+    final pos = await LocationService.instance.getCurrentLatLng();
+    final result = await OpenChargeMapService.instance
+        .nearby(center: pos, radiusKm: 25, maxResults: 20);
+    if (!mounted) return;
+    result.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+    setState(() {
+      _nearby = result.take(3).toList();
+      _loadingNearby = false;
     });
   }
 
@@ -48,7 +71,57 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final nearby = MockData.stations.take(3).toList();
+    final List<Widget> nearbyWidgets = (_nearby.isEmpty && _loadingNearby)
+        ? [
+            const Padding(
+              padding: EdgeInsets.only(top: 30),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          ]
+        : _nearby.isEmpty
+            ? [
+                const Padding(
+                  padding: EdgeInsets.only(top: 20, bottom: 10),
+                  child: Center(
+                    child: Text('No charging stations found nearby.',
+                        style: TextStyle(color: AppColors.textMuted)),
+                  ),
+                ),
+              ]
+            : _nearby
+            .map(
+              (s) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Card(
+                  child: ListTile(
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    leading: CircleAvatar(
+                      backgroundColor: AppColors.primaryPale,
+                      child: const Icon(Icons.bolt_rounded,
+                          color: AppColors.primary),
+                    ),
+                    title: Text(s.name,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textDark)),
+                    subtitle: Text(
+                        '${s.statusLabel} \u2022 ${s.distanceKm.toStringAsFixed(1)} km \u2022 ${s.speed}',
+                        style: const TextStyle(color: AppColors.textMuted)),
+                    trailing: Text(
+                      s.statusLabel,
+                      style: TextStyle(
+                          color: s.statusColor, fontWeight: FontWeight.w700),
+                    ),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (_) => StationDetailScreen(station: s)),
+                    ),
+                  ),
+                ),
+              ),
+            )
+            .toList();
 
     return Scaffold(
       appBar: AppHeader(
@@ -136,7 +209,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: PageView.builder(
               controller: _adController,
               itemCount: MockData.ads.length,
-              onPageChanged: (i) => _adIndex = i,
+              onPageChanged: (i) => setState(() => _adIndex = i),
               itemBuilder: (context, i) {
                 final ad = MockData.ads[i];
                 return _AdCard(title: ad['title']!, subtitle: ad['subtitle']!);
@@ -165,42 +238,50 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 20),
 
           // ---- Quick actions ----
-          Row(
-            children: [
-              Expanded(
-                child: _QuickAction(
-                  icon: Icons.ev_station_rounded,
-                  label: AppStrings.t('quick_charging_station'),
-                  onTap: () => Navigator.of(context).pushNamed('/stations'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _QuickAction(
-                  icon: Icons.favorite_rounded,
-                  label: AppStrings.t('quick_favourites'),
-                  onTap: () => Navigator.of(context).pushNamed('/favourites'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _QuickAction(
-                  icon: Icons.history_rounded,
-                  label: AppStrings.t('quick_charging_history'),
-                  onTap: () => Navigator.of(context).pushNamed('/history'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _QuickAction(
-                  icon: Icons.alt_route_rounded,
-                  label: AppStrings.t('quick_my_route'),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const RoutePlannerScreen()),
+          // IntrinsicHeight + CrossAxisAlignment.stretch so every card
+          // matches the height of the tallest one in the row (Row alone
+          // only equalises width via Expanded, not height, so a card
+          // with a single-line label like "Favourites" was shrinking to
+          // fit its own shorter content while two-line labels stayed tall).
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _QuickAction(
+                    icon: Icons.ev_station_rounded,
+                    label: AppStrings.t('quick_charging_station'),
+                    onTap: () => Navigator.of(context).pushNamed('/stations'),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _QuickAction(
+                    icon: Icons.favorite_rounded,
+                    label: AppStrings.t('quick_favourites'),
+                    onTap: () => Navigator.of(context).pushNamed('/favourites'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _QuickAction(
+                    icon: Icons.history_rounded,
+                    label: AppStrings.t('quick_charging_history'),
+                    onTap: () => Navigator.of(context).pushNamed('/history'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _QuickAction(
+                    icon: Icons.alt_route_rounded,
+                    label: AppStrings.t('quick_my_route'),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const RoutePlannerScreen()),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 26),
 
@@ -211,38 +292,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Text(AppStrings.t('see_all')),
             ),
           ),
-          ...nearby.map(
-            (s) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Card(
-                child: ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  leading: CircleAvatar(
-                    backgroundColor: AppColors.primaryPale,
-                    child: const Icon(Icons.bolt_rounded,
-                        color: AppColors.primary),
-                  ),
-                  title: Text(s.name,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textDark)),
-                  subtitle: Text(
-                      '${s.statusLabel} \u2022 ${s.distanceKm} km \u2022 ${s.speed}',
-                      style: const TextStyle(color: AppColors.textMuted)),
-                  trailing: Text(
-                    s.statusLabel,
-                    style: TextStyle(
-                        color: s.statusColor, fontWeight: FontWeight.w700),
-                  ),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                        builder: (_) => StationDetailScreen(station: s)),
-                  ),
-                ),
-              ),
-            ),
-          ),
+          ...nearbyWidgets,
         ],
       ),
       bottomNavigationBar: const AppFooter(currentIndex: 0),
@@ -311,6 +361,7 @@ class _QuickAction extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               CircleAvatar(
                 radius: 22,

@@ -113,15 +113,26 @@ class SessionSummaryScreen extends StatelessWidget {
 
   Widget _row(String label, String value, {bool emphasize = false}) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: const TextStyle(color: AppColors.textMuted)),
-        Text(value,
+        const SizedBox(width: 12),
+        // Expanded + ellipsis so a long value (e.g. a long station name)
+        // wraps/truncates within the card instead of overflowing off
+        // the edge of the screen.
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: emphasize ? 18 : 14,
               color: emphasize ? AppColors.primaryDark : AppColors.textDark,
-            )),
+            ),
+          ),
+        ),
       ],
     );
   }

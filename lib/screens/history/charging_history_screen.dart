@@ -201,6 +201,19 @@ class _SessionTile extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 6),
+            if (session.vehicleName != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.directions_car_rounded,
+                        size: 14, color: AppColors.textMuted),
+                    const SizedBox(width: 4),
+                    Text(session.vehicleName!,
+                        style: const TextStyle(color: AppColors.textMuted, fontSize: 12.5)),
+                  ],
+                ),
+              ),
             Text(
               session.status == SessionStatus.cancelled
                   ? '$dateLabel \u2022 session not started'

@@ -6,8 +6,11 @@ import '../../models/vehicle.dart';
 import '../../services/app_state.dart';
 
 class EditVehicleScreen extends StatefulWidget {
-  final Vehicle vehicle;
-  const EditVehicleScreen({super.key, required this.vehicle});
+  /// The vehicle to edit, or null to add a brand-new one.
+  final Vehicle? vehicle;
+  const EditVehicleScreen({super.key, this.vehicle});
+
+  bool get isNew => vehicle == null;
 
   @override
   State<EditVehicleScreen> createState() => _EditVehicleScreenState();
@@ -15,13 +18,13 @@ class EditVehicleScreen extends StatefulWidget {
 
 class _EditVehicleScreenState extends State<EditVehicleScreen> {
   final _formKey = GlobalKey<FormState>();
-  late final _nameController = TextEditingController(text: widget.vehicle.name);
-  late final _batteryController =
-      TextEditingController(text: _extractNumber(widget.vehicle.batteryCapacity));
-  late final _rangeController =
-      TextEditingController(text: widget.vehicle.rangeKm.round().toString());
-  late String _connector = widget.vehicle.connector;
-  late String _preferred = widget.vehicle.preferredCharging;
+  late final _nameController = TextEditingController(text: widget.vehicle?.name ?? '');
+  late final _batteryController = TextEditingController(
+      text: widget.vehicle != null ? _extractNumber(widget.vehicle!.batteryCapacity) : '');
+  late final _rangeController = TextEditingController(
+      text: widget.vehicle != null ? widget.vehicle!.rangeKm.round().toString() : '480');
+  late String _connector = widget.vehicle?.connector ?? _connectorOptions.first;
+  late String _preferred = widget.vehicle?.preferredCharging ?? _chargingOptions.first;
   bool _saving = false;
 
   static const _connectorOptions = ['CCS2', 'Type 2', 'CHAdeMO'];
@@ -62,6 +65,7 @@ class _EditVehicleScreenState extends State<EditVehicleScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     final updated = Vehicle(
+      id: widget.vehicle?.id,
       name: _nameController.text.trim(),
       connector: _connector,
       batteryCapacity: '${_batteryController.text.trim()} kWh',
@@ -77,7 +81,7 @@ class _EditVehicleScreenState extends State<EditVehicleScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const AppHeader(title: 'Edit Vehicle'),
+      appBar: AppHeader(title: widget.isNew ? 'Add Vehicle' : 'Edit Vehicle'),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -122,7 +126,7 @@ class _EditVehicleScreenState extends State<EditVehicleScreen> {
                       height: 22,
                       child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                     )
-                  : const Text('Done'),
+                  : Text(widget.isNew ? 'Add Vehicle' : 'Done'),
             ),
           ],
         ),

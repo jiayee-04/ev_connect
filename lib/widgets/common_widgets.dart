@@ -40,8 +40,13 @@ class LabeledField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: const TextStyle(
-                fontWeight: FontWeight.w700, color: AppColors.textDark)),
+            style: TextStyle(
+                fontWeight: FontWeight.w700,
+                // Labels sit on the scaffold, which DOES change with
+                // theme brightness, so this one should follow the theme.
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white
+                    : AppColors.textDark)),
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,
@@ -50,10 +55,16 @@ class LabeledField extends StatelessWidget {
           obscureText: obscureText,
           inputFormatters: inputFormatters,
           maxLines: maxLines,
+          // The input surface (fillColor) intentionally stays light in
+          // both themes, so the typed text must stay dark regardless of
+          // theme brightness instead of inheriting textTheme.bodyLarge
+          // (which turns white in dark mode and disappears).
+          style: const TextStyle(color: AppColors.textDark),
           decoration: InputDecoration(
             suffixIcon: suffixIcon,
             suffixText: suffixText,
             hintText: hintText,
+            hintStyle: const TextStyle(color: AppColors.textMuted),
             helperText: helperText,
             helperMaxLines: 2,
             helperStyle: const TextStyle(

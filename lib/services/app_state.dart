@@ -12,20 +12,103 @@ class AppState {
   AppState._();
   static final AppState instance = AppState._();
 
-  static const _vehicleKey = 'ev_connect_vehicle';
+  static const _vehiclesKey = 'ev_connect_vehicles';
+  static const _activeVehicleIdKey = 'ev_connect_active_vehicle_id';
+  // Old single-vehicle storage key, kept only so _getVehicles() can
+  // migrate anyone's existing saved vehicle into the new multi-vehicle
+  // list the first time they open the app after this update.
+  static const _legacyVehicleKey = 'ev_connect_vehicle';
   static const _favouritesKey = 'ev_connect_favourites';
   static const _historyKey = 'ev_connect_history';
 
-  Future<Vehicle> getVehicle() async {
+  /// All vehicles the user has saved, oldest-added first. Migrates the
+  /// old single-vehicle format on first read, or seeds a default vehicle
+  /// if there's nothing saved at all yet.
+  Future<List<Vehicle>> getVehicles() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_vehicleKey);
-    if (raw == null) return Vehicle.defaultVehicle();
-    return Vehicle.fromJson(Map<String, dynamic>.from(jsonDecode(raw)));
+    final raw = prefs.getStringList(_vehiclesKey);
+    if (raw != null) {
+      final vehicles = raw
+          .map((s) =>
+              Vehicle.fromJson(Map<String, dynamic>.from(jsonDecode(s))))
+          .toList();
+      if (vehicles.isNotEmpty) return vehicles;
+    }
+    final legacyRaw = prefs.getString(_legacyVehicleKey);
+    final migrated = legacyRaw != null
+        ? Vehicle.fromJson(Map<String, dynamic>.from(jsonDecode(legacyRaw)))
+        : Vehicle.defaultVehicle();
+    await _writeVehicles([migrated]);
+    await prefs.setString(_activeVehicleIdKey, migrated.id);
+    return [migrated];
   }
 
-  Future<void> saveVehicle(Vehicle vehicle) async {
+  Future<void> _writeVehicles(List<Vehicle> vehicles) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_vehicleKey, jsonEncode(vehicle.toJson()));
+    await prefs.setStringList(
+      _vehiclesKey,
+      vehicles.map((v) => jsonEncode(v.toJson())).toList(),
+    );
+  }
+
+  Future<String> _getActiveVehicleId(List<Vehicle> vehicles) async {
+    final prefs = await SharedPreferences.getInstance();
+    final id = prefs.getString(_activeVehicleIdKey);
+    if (id != null && vehicles.any((v) => v.id == id)) return id;
+    // Active id missing or points at a vehicle that no longer exists
+    // (e.g. it was deleted) - fall back to the first vehicle.
+    final fallback = vehicles.first.id;
+    await prefs.setString(_activeVehicleIdKey, fallback);
+    return fallback;
+  }
+
+  /// The vehicle used everywhere only "the" vehicle matters - route
+  /// planning, connector matching, etc. This is the currently *active*
+  /// vehicle out of possibly several saved ones.
+  Future<Vehicle> getVehicle() async {
+    final vehicles = await getVehicles();
+    final activeId = await _getActiveVehicleId(vehicles);
+    return vehicles.firstWhere((v) => v.id == activeId,
+        orElse: () => vehicles.first);
+  }
+
+  /// Makes [id] the active vehicle. No-op if [id] doesn't match a saved
+  /// vehicle.
+  Future<void> setActiveVehicle(String id) async {
+    final vehicles = await getVehicles();
+    if (!vehicles.any((v) => v.id == id)) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_activeVehicleIdKey, id);
+  }
+
+  /// Inserts [vehicle] if its id isn't already saved, otherwise updates
+  /// the existing entry in place. Used for both "Edit Vehicle" (existing
+  /// id) and "Add Vehicle" (new id) so callers don't need to know which
+  /// case they're in.
+  Future<void> saveVehicle(Vehicle vehicle) async {
+    final vehicles = await getVehicles();
+    final idx = vehicles.indexWhere((v) => v.id == vehicle.id);
+    if (idx == -1) {
+      vehicles.add(vehicle);
+    } else {
+      vehicles[idx] = vehicle;
+    }
+    await _writeVehicles(vehicles);
+  }
+
+  /// Removes a vehicle. Refuses to delete the last remaining vehicle -
+  /// the app always needs at least one active vehicle to function. If
+  /// the deleted vehicle was the active one, falls back to whichever
+  /// vehicle is now first.
+  Future<void> deleteVehicle(String id) async {
+    final vehicles = await getVehicles();
+    if (vehicles.length <= 1) return;
+    vehicles.removeWhere((v) => v.id == id);
+    await _writeVehicles(vehicles);
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString(_activeVehicleIdKey) == id) {
+      await prefs.setString(_activeVehicleIdKey, vehicles.first.id);
+    }
   }
 
   /// Favourites are stored as full station snapshots keyed by id, not
