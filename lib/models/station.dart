@@ -25,6 +25,7 @@ class ChargingStation {
   final int freeSlots;
   final int totalSlots;
   final String operator; // e.g. ChargEV, Gentari, Shell Recharge
+  final String chargerType; // 'AC', 'DC', 'AC & DC', or 'Unknown'
   final bool isOpen24Hours;
   final List<String> amenities;
   final StationSource source;
@@ -48,6 +49,7 @@ class ChargingStation {
     required this.freeSlots,
     required this.totalSlots,
     this.operator = 'Independent',
+    this.chargerType = 'Unknown',
     this.isOpen24Hours = true,
     this.amenities = const [],
     this.source = StationSource.mock,
@@ -127,6 +129,7 @@ class ChargingStation {
       freeSlots: freeSlots,
       totalSlots: totalSlots,
       operator: operator,
+      chargerType: chargerType,
       isOpen24Hours: isOpen24Hours,
       amenities: amenities,
       source: source,
@@ -152,6 +155,7 @@ class ChargingStation {
         'freeSlots': freeSlots,
         'totalSlots': totalSlots,
         'operator': operator,
+        'chargerType': chargerType,
         'isOpen24Hours': isOpen24Hours,
         'amenities': amenities,
         'source': source.name,
@@ -185,6 +189,7 @@ class ChargingStation {
         freeSlots: json['freeSlots'] as int? ?? 0,
         totalSlots: json['totalSlots'] as int? ?? 0,
         operator: json['operator'] as String? ?? 'Independent',
+        chargerType: json['chargerType'] as String? ?? 'Unknown',
         isOpen24Hours: json['isOpen24Hours'] as bool? ?? true,
         amenities: List<String>.from(json['amenities'] as List? ?? []),
         source: StationSource.values.firstWhere(

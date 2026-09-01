@@ -138,6 +138,8 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
                   const Divider(),
                   _infoRow('Charging speed', '${s.speed} · up to ${s.maxPowerKw.toStringAsFixed(0)} kW'),
                   const Divider(),
+                  _infoRow('Charger type', s.chargerType),
+                  const Divider(),
                   _infoRow('Available slots', '${s.freeSlots} / ${s.totalSlots}'),
                   if (s.slots.isNotEmpty) ...[
                     const SizedBox(height: 10),

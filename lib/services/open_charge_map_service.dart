@@ -174,6 +174,42 @@ class OpenChargeMapService {
     return t;
   }
 
+  /// OCM reports each connector's actual current type directly
+  /// (`CurrentType.Title`, e.g. "AC (Single-Phase)", "AC (Three-Phase)",
+  /// "DC") — this is the real classification, not a guess from the
+  /// connector name. That matters because a connector name alone isn't
+  /// reliable: Type 2 is AC in the overwhelming majority of installs but
+  /// isn't defined to be, and Tesla connectors cover both DC Superchargers
+  /// and AC destination chargers.
+  String _chargerType(List<dynamic> connections, List<String> canonicalConnectors) {
+    var hasAc = false;
+    var hasDc = false;
+    for (final raw in connections) {
+      final c = raw as Map<String, dynamic>;
+      final currentType = c['CurrentType'] as Map<String, dynamic>?;
+      final title = (currentType?['Title'] as String?)?.toUpperCase();
+      if (title == null) continue;
+      if (title.contains('DC')) hasDc = true;
+      if (title.contains('AC')) hasAc = true;
+    }
+
+    if (!hasAc && !hasDc) {
+      // This particular OCM record didn't include current-type data —
+      // fall back to inferring from the connector types themselves.
+      // Type 1/Type 2 are AC in virtually every real Malaysian install;
+      // CCS2, CHAdeMO and GB/T are DC-only by design; Tesla is treated as
+      // DC since Superchargers dominate what OCM lists here.
+      hasAc = canonicalConnectors.any((c) => c == 'Type 1' || c == 'Type 2');
+      hasDc = canonicalConnectors
+          .any((c) => c == 'CCS2' || c == 'CHAdeMO' || c == 'GB/T' || c == 'Tesla');
+    }
+
+    if (hasAc && hasDc) return 'AC & DC';
+    if (hasDc) return 'DC';
+    if (hasAc) return 'AC';
+    return 'Unknown';
+  }
+
   /// Expands OCM's `Connections` array into individual slot entries. Each
   /// connection can represent more than one physical port (`Quantity`) and
   /// can carry its own operational status distinct from the station's
@@ -265,6 +301,7 @@ class OpenChargeMapService {
         freeSlots: numPoints,
         totalSlots: numPoints,
         operator: _canonicalOperator(operatorInfo?['Title'] as String?),
+        chargerType: _chargerType(connections, connectorNames.cast<String>()),
         source: StationSource.live,
         slots: slots.isEmpty
             ? List.generate(
