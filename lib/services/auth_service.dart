@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,19 +12,34 @@ import '../models/app_user.dart';
 /// old SharedPreferences demo version, so none of the other screens
 /// (splash, profile, etc.) need to change.
 ///
-/// Firebase Auth doesn't have a built-in "phone number" profile field,
-/// so that one piece is still kept locally in SharedPreferences, keyed
-/// by the user's Firebase uid, alongside real Firebase authentication
-/// for everything else.
+/// fullName and email live directly on the Firebase Auth user record.
+/// phone and the profile photo are both stored in Cloud Firestore at
+/// users/{uid} — the photo as a small base64-encoded string field
+/// rather than a separate file in Cloud Storage, since Storage requires
+/// the pay-as-you-go Blaze plan to enable at all (even within its free
+/// tier), while Firestore works on the free Spark plan. The trade-off:
+/// Firestore caps a whole document at 1MiB, so the photo is resized and
+/// compressed small at capture time (see edit_profile_screen.dart) to
+/// comfortably fit.
 class AuthService {
   AuthService._();
   static final AuthService instance = AuthService._();
 
+  // Old local keys — read only during the one-time migration below, for
+  // any user who already had a phone/photo saved before this update.
   static const _phoneKeyPrefix = 'ev_connect_phone_';
   static const _photoKeyPrefix = 'ev_connect_photo_';
 
+  // Leaves headroom under Firestore's 1MiB document cap for the rest of
+  // the profile doc's fields (phone, etc).
+  static const _maxPhotoBytes = 700 * 1024;
+
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  DocumentReference<Map<String, dynamic>> _profileDoc(String uid) =>
+      _db.collection('users').doc(uid);
 
   // ---------------------------------------------------------------------
   // Email / password
@@ -34,7 +53,15 @@ class AuthService {
         password: user.password ?? '',
       );
       await credential.user?.updateDisplayName(user.fullName);
-      await _savePhone(credential.user!.uid, user.phone);
+      final uid = credential.user!.uid;
+      String? photoData = user.photoPath;
+      if (photoData != null && !_isAlreadyEncoded(photoData)) {
+        photoData = await _encodePhotoAsDataUri(File(photoData));
+      }
+      await _profileDoc(uid).set({
+        'phone': user.phone,
+        'photoPath': photoData,
+      });
       return null;
     } on FirebaseAuthException catch (e) {
       return _friendlyError(e);
@@ -64,7 +91,14 @@ class AuthService {
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
-      await _auth.signInWithCredential(credential);
+      final result = await _auth.signInWithCredential(credential);
+      final uid = result.user?.uid;
+      if (uid != null) {
+        final snap = await _profileDoc(uid).get();
+        if (!snap.exists) {
+          await _profileDoc(uid).set({'phone': '', 'photoPath': null});
+        }
+      }
       return null;
     } on FirebaseAuthException catch (e) {
       return _friendlyError(e);
@@ -104,14 +138,13 @@ class AuthService {
   Future<AppUser?> currentUser() async {
     final firebaseUser = _auth.currentUser;
     if (firebaseUser == null) return null;
-    final phone = await _readPhone(firebaseUser.uid);
-    final photoPath = await _readPhotoPath(firebaseUser.uid);
+    final profile = await _readOrMigrateProfile(firebaseUser.uid);
     return AppUser(
       fullName: firebaseUser.displayName ?? '',
       email: firebaseUser.email ?? '',
-      phone: phone,
+      phone: profile['phone'] as String? ?? '',
       provider: _mapProvider(firebaseUser),
-      photoPath: photoPath,
+      photoPath: profile['photoPath'] as String?,
     );
   }
 
@@ -119,13 +152,37 @@ class AuthService {
     final firebaseUser = _auth.currentUser;
     if (firebaseUser == null) return;
     await firebaseUser.updateDisplayName(user.fullName);
-    await _savePhone(firebaseUser.uid, user.phone);
-    if (user.photoPath == null) {
-      await _clearPhotoPath(firebaseUser.uid);
-    } else {
-      await _savePhotoPath(firebaseUser.uid, user.photoPath!);
+
+    String? photoData = user.photoPath;
+    if (photoData != null && !_isAlreadyEncoded(photoData)) {
+      // A local file path (freshly picked, not yet embedded) — encode it.
+      photoData = await _encodePhotoAsDataUri(File(photoData));
     }
+
+    await _profileDoc(firebaseUser.uid).set({
+      'phone': user.phone,
+      'photoPath': photoData, // null clears the saved photo
+    }, SetOptions(merge: true));
   }
+
+  /// Encodes a local photo file as a data URI so it can live directly in
+  /// the Firestore profile doc. Throws if the file is too large even
+  /// after the picker's own resize/compression, so the caller can show
+  /// the person a clear error instead of a confusing Firestore failure.
+  Future<String> _encodePhotoAsDataUri(File file) async {
+    final bytes = await file.readAsBytes();
+    if (bytes.length > _maxPhotoBytes) {
+      throw StateError(
+          'Photo is too large (${(bytes.length / 1024).round()}KB) — please choose a smaller image.');
+    }
+    return 'data:image/jpeg;base64,${base64Encode(bytes)}';
+  }
+
+  /// True for a photoPath already saved to Firestore (a data: URI) or,
+  /// for backward compatibility, an old Firebase Storage https:// URL
+  /// from before this switch — neither needs re-encoding.
+  bool _isAlreadyEncoded(String photoPath) =>
+      photoPath.startsWith('data:') || photoPath.startsWith('http');
 
   Future<bool> isLoggedIn() async {
     // On app startup, Firebase needs a brief moment to restore a
@@ -148,29 +205,21 @@ class AuthService {
     return AuthProvider.email;
   }
 
-  Future<void> _savePhone(String uid, String phone) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('$_phoneKeyPrefix$uid', phone);
-  }
+  /// Reads the Firestore profile doc, or — for a user who already had
+  /// data saved under the old per-uid SharedPreferences keys — migrates
+  /// it up to Firestore once and returns that instead. New/Google users
+  /// with nothing saved either way get an empty default profile.
+  Future<Map<String, dynamic>> _readOrMigrateProfile(String uid) async {
+    final snap = await _profileDoc(uid).get();
+    if (snap.exists && snap.data() != null) return snap.data()!;
 
-  Future<String> _readPhone(String uid) async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('$_phoneKeyPrefix$uid') ?? '';
-  }
-
-  Future<void> _savePhotoPath(String uid, String path) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('$_photoKeyPrefix$uid', path);
-  }
-
-  Future<String?> _readPhotoPath(String uid) async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('$_photoKeyPrefix$uid');
-  }
-
-  Future<void> _clearPhotoPath(String uid) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('$_photoKeyPrefix$uid');
+    final data = <String, dynamic>{
+      'phone': prefs.getString('$_phoneKeyPrefix$uid') ?? '',
+      'photoPath': prefs.getString('$_photoKeyPrefix$uid'),
+    };
+    await _profileDoc(uid).set(data);
+    return data;
   }
 
   String _friendlyError(FirebaseAuthException e) {

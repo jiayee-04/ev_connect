@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import '../models/station.dart';
+import '../models/charging_slot.dart';
 import 'mock_data.dart';
 import 'location_service.dart';
 
@@ -71,10 +72,32 @@ class OpenChargeMapService {
   List<ChargingStation> _fallback(LatLng center) {
     final withRealDistance = MockData.stations.map((s) {
       final km = LocationService.instance.distanceKm(center, LatLng(s.latitude, s.longitude));
-      return s.copyWith(distanceKm: double.parse(km.toStringAsFixed(1)));
+      return s.copyWith(
+        distanceKm: double.parse(km.toStringAsFixed(1)),
+        // Mock stations hand-author freeSlots/totalSlots as a genuine
+        // occupancy split, so (unlike live OCM data) it's honest to expand
+        // that into an occupied/available grid here.
+        slots: s.slots.isNotEmpty
+            ? s.slots
+            : _synthesizeSlotsFromCounts(s.freeSlots, s.totalSlots),
+      );
     }).toList()
       ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
     return withRealDistance;
+  }
+
+  /// Synthesizes a per-slot grid from mock/fallback stations' hand-authored
+  /// freeSlots/totalSlots counts. Only valid where those counts were
+  /// intentionally authored to represent occupancy (i.e. NOT for live OCM
+  /// data, which reports point counts, not occupancy — see _buildSlots).
+  List<ChargingSlot> _synthesizeSlotsFromCounts(int freeSlots, int totalSlots) {
+    final free = freeSlots.clamp(0, totalSlots);
+    return List.generate(totalSlots, (i) {
+      return ChargingSlot(
+        index: i + 1,
+        state: i < free ? SlotState.available : SlotState.occupied,
+      );
+    });
   }
 
   /// OCM's connector titles are free-text and inconsistent across records
@@ -123,6 +146,41 @@ class OpenChargeMapService {
     return t;
   }
 
+  /// Expands OCM's `Connections` array into individual slot entries. Each
+  /// connection can represent more than one physical port (`Quantity`) and
+  /// can carry its own operational status distinct from the station's
+  /// overall status.
+  ///
+  /// Occupancy (busy vs. free) is NOT something OCM's free API reports, so
+  /// every non-offline port here is marked `available` — never `occupied`.
+  /// Synthesizing a busy/free split from a count (as fallback stations do)
+  /// would misrepresent this as live occupancy when it isn't.
+  List<ChargingSlot> _buildSlots(List<dynamic> connections, bool stationIsOperational) {
+    final slots = <ChargingSlot>[];
+    var index = 1;
+
+    for (final raw in connections) {
+      final c = raw as Map<String, dynamic>;
+      final quantity = (c['Quantity'] as num?)?.toInt() ?? 1;
+      final connStatus = c['StatusType'] as Map<String, dynamic>?;
+      final operational = connStatus?['IsOperational'] as bool? ?? stationIsOperational;
+      final connType = c['ConnectionType'] as Map<String, dynamic>?;
+      final label = connType != null
+          ? _canonicalConnector((connType['Title'] as String?) ?? 'Unknown')
+          : null;
+
+      for (var i = 0; i < (quantity < 1 ? 1 : quantity); i++) {
+        slots.add(ChargingSlot(
+          index: index++,
+          state: operational ? SlotState.available : SlotState.offline,
+          connectorType: label,
+        ));
+      }
+    }
+
+    return slots;
+  }
+
   ChargingStation? _fromOcmJson(dynamic raw, LatLng center) {
     try {
       final map = raw as Map<String, dynamic>;
@@ -155,6 +213,8 @@ class OpenChargeMapService {
         LatLng(lat, lng),
       );
 
+      final slots = _buildSlots(connections, isOperational);
+
       return ChargingStation(
         id: 'ocm_${map['ID']}',
         name: (addressInfo['Title'] as String?)?.trim().isNotEmpty == true
@@ -178,6 +238,15 @@ class OpenChargeMapService {
         totalSlots: numPoints,
         operator: _canonicalOperator(operatorInfo?['Title'] as String?),
         source: StationSource.live,
+        slots: slots.isEmpty
+            ? List.generate(
+                numPoints,
+                (i) => ChargingSlot(
+                  index: i + 1,
+                  state: isOperational ? SlotState.available : SlotState.offline,
+                ),
+              ) // no per-connection breakdown at all — fall back to station-level status
+            : slots,
       );
     } catch (_) {
       return null;

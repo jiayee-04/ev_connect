@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'charging_slot.dart';
 
 enum StationStatus { available, busy, offline }
 
@@ -28,6 +29,7 @@ class ChargingStation {
   final List<String> amenities;
   final StationSource source;
   final DateTime? lastVerified; // community "last confirmed working" stamp
+  final List<ChargingSlot> slots; // per-port status; empty if unavailable
 
   const ChargingStation({
     required this.id,
@@ -50,6 +52,7 @@ class ChargingStation {
     this.amenities = const [],
     this.source = StationSource.mock,
     this.lastVerified,
+    this.slots = const [],
   });
 
   String get statusLabel {
@@ -106,7 +109,7 @@ class ChargingStation {
     }
   }
 
-  ChargingStation copyWith({double? distanceKm}) {
+  ChargingStation copyWith({double? distanceKm, List<ChargingSlot>? slots}) {
     return ChargingStation(
       id: id,
       name: name,
@@ -128,6 +131,7 @@ class ChargingStation {
       amenities: amenities,
       source: source,
       lastVerified: lastVerified,
+      slots: slots ?? this.slots,
     );
   }
 
@@ -152,6 +156,13 @@ class ChargingStation {
         'amenities': amenities,
         'source': source.name,
         'lastVerified': lastVerified?.toIso8601String(),
+        'slots': slots
+            .map((s) => {
+                  'index': s.index,
+                  'state': s.state.name,
+                  'connectorType': s.connectorType,
+                })
+            .toList(),
       };
 
   factory ChargingStation.fromJson(Map<String, dynamic> json) => ChargingStation(
@@ -183,5 +194,18 @@ class ChargingStation {
         lastVerified: json['lastVerified'] != null
             ? DateTime.tryParse(json['lastVerified'] as String)
             : null,
+        slots: (json['slots'] as List<dynamic>? ?? [])
+            .map((s) {
+              final m = s as Map<String, dynamic>;
+              return ChargingSlot(
+                index: m['index'] as int,
+                state: SlotState.values.firstWhere(
+                  (v) => v.name == m['state'],
+                  orElse: () => SlotState.offline,
+                ),
+                connectorType: m['connectorType'] as String?,
+              );
+            })
+            .toList(),
       );
 }

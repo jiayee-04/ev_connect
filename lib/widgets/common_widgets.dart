@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -129,10 +130,14 @@ class RoundedActionButton extends StatelessWidget {
   }
 }
 
-/// Circular profile picture. Shows the user's local photo file when
-/// [photoPath] is set (and the file still exists), otherwise falls back
-/// to the default person icon. Pass [onEditTap] to show a small pencil
-/// badge in the corner that the user can tap to change the picture.
+/// Circular profile picture. Shows the user's photo when [photoPath] is
+/// set — a local file (mid-edit, not yet saved), a data: URI (the saved
+/// photo, embedded directly in the Firestore profile doc), or an
+/// https:// URL (kept only for backward compatibility with any photo
+/// uploaded before the switch away from Cloud Storage) — otherwise
+/// falls back to the default person icon. Pass [onEditTap] to show a
+/// small pencil badge in the corner that the user can tap to change the
+/// picture.
 class ProfileAvatar extends StatelessWidget {
   final String? photoPath;
   final double radius;
@@ -147,8 +152,24 @@ class ProfileAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final file = (photoPath != null && photoPath!.isNotEmpty) ? File(photoPath!) : null;
-    final hasPhoto = file != null && file.existsSync();
+    final path = photoPath;
+    ImageProvider? image;
+    if (path != null && path.isNotEmpty) {
+      if (path.startsWith('data:')) {
+        try {
+          final base64Part = path.substring(path.indexOf(',') + 1);
+          image = MemoryImage(base64Decode(base64Part));
+        } catch (_) {
+          // Corrupted/malformed data URI — fall through to the icon
+          // rather than crashing the screen.
+        }
+      } else if (path.startsWith('http')) {
+        image = NetworkImage(path);
+      } else {
+        final file = File(path);
+        if (file.existsSync()) image = FileImage(file);
+      }
+    }
 
     return Stack(
       clipBehavior: Clip.none,
@@ -156,10 +177,17 @@ class ProfileAvatar extends StatelessWidget {
         CircleAvatar(
           radius: radius,
           backgroundColor: AppColors.primaryLight,
-          backgroundImage: hasPhoto ? FileImage(file) : null,
-          child: hasPhoto
+          backgroundImage: image,
+          onBackgroundImageError: image == null
               ? null
-              : Icon(Icons.person_rounded, size: radius * 1.1, color: Colors.white),
+              : (_, __) {
+                  // e.g. a stale/unreachable legacy network URL —
+                  // CircleAvatar has no built-in fallback, so this just
+                  // prevents an uncaught error.
+                },
+          child: image == null
+              ? Icon(Icons.person_rounded, size: radius * 1.1, color: Colors.white)
+              : null,
         ),
         if (onEditTap != null)
           Positioned(

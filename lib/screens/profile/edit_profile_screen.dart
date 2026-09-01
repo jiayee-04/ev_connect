@@ -45,10 +45,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       photoPath: _photoPath,
       clearPhoto: _photoPath == null,
     );
-    await AuthService.instance.updateUser(updated);
-    if (!mounted) return;
-    setState(() => _saving = false);
-    Navigator.of(context).pop(updated);
+    try {
+      await AuthService.instance.updateUser(updated);
+      if (!mounted) return;
+      Navigator.of(context).pop(updated);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save profile: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<void> _pickPhoto(ImageSource source) async {
@@ -56,11 +64,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _pickingPhoto = true);
     try {
       final picker = ImagePicker();
+      // Kept small on purpose: this photo is stored as a base64 string
+      // directly inside the Firestore profile document (no separate
+      // file storage service), which caps a whole document at 1MiB. A
+      // 400x400 JPEG at this quality typically lands well under 100KB
+      // raw, ~130KB once base64-encoded — comfortably inside that limit
+      // even with the rest of the profile doc's fields.
       final picked = await picker.pickImage(
         source: source,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
+        maxWidth: 400,
+        maxHeight: 400,
+        imageQuality: 60,
       );
       if (picked == null) return;
 

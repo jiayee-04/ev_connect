@@ -4,6 +4,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/app_header.dart';
 import '../../widgets/common_widgets.dart';
 import '../../models/station.dart';
+import '../../models/charging_slot.dart';
 import '../../services/app_state.dart';
 import '../payment/booking_confirm_screen.dart';
 import '../favourites/favourites_screen.dart';
@@ -18,6 +19,7 @@ class StationDetailScreen extends StatefulWidget {
 
 class _StationDetailScreenState extends State<StationDetailScreen> {
   bool _isFavourite = false;
+  int? _selectedSlotIndex;
 
   @override
   void initState() {
@@ -137,6 +139,20 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
                   _infoRow('Charging speed', '${s.speed} · up to ${s.maxPowerKw.toStringAsFixed(0)} kW'),
                   const Divider(),
                   _infoRow('Available slots', '${s.freeSlots} / ${s.totalSlots}'),
+                  if (s.slots.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    _SlotGrid(
+                      slots: s.slots,
+                      selectedIndex: _selectedSlotIndex,
+                      onSelect: (slot) {
+                        setState(() {
+                          _selectedSlotIndex =
+                              _selectedSlotIndex == slot.index ? null : slot.index;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 6),
+                  ],
                   const Divider(),
                   _infoRow('Price', 'RM ${s.pricePerKwh.toStringAsFixed(2)} / kWh'),
                   const Divider(),
@@ -173,7 +189,7 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            onPressed: s.status == StationStatus.offline
+            onPressed: (s.status == StationStatus.offline || !_canStartCharging(s))
                 ? null
                 : () {
               Navigator.of(context).push(
@@ -183,9 +199,7 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
               );
             },
             icon: const Icon(Icons.bolt_rounded),
-            label: Text(s.status == StationStatus.offline
-                ? 'Station Offline'
-                : 'Start Charging'),
+            label: Text(_startChargingLabel(s)),
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
@@ -196,6 +210,26 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
         ],
       ),
     );
+  }
+
+  /// If the station exposes a per-slot grid, the user must pick an
+  /// available one before starting — you can't charge on a port that
+  /// doesn't exist or is occupied/offline. Stations without slot data
+  /// (older/mock records) fall back to the old aggregate-only behavior.
+  bool _canStartCharging(ChargingStation s) {
+    if (s.slots.isEmpty) return true;
+    if (_selectedSlotIndex == null) return false;
+    final selected = s.slots.firstWhere(
+      (slot) => slot.index == _selectedSlotIndex,
+      orElse: () => s.slots.first,
+    );
+    return selected.state == SlotState.available;
+  }
+
+  String _startChargingLabel(ChargingStation s) {
+    if (s.status == StationStatus.offline) return 'Station Offline';
+    if (s.slots.isNotEmpty && _selectedSlotIndex == null) return 'Select a Slot';
+    return 'Start Charging';
   }
 
   Future<void> _openExternalNavigation(ChargingStation s) async {
@@ -228,6 +262,74 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
               style: TextStyle(
                   fontWeight: FontWeight.w700, color: valueColor ?? AppColors.textDark)),
         ],
+      ),
+    );
+  }
+}
+
+class _SlotGrid extends StatelessWidget {
+  final List<ChargingSlot> slots;
+  final int? selectedIndex;
+  final ValueChanged<ChargingSlot> onSelect;
+  const _SlotGrid({
+    required this.slots,
+    required this.selectedIndex,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: slots
+          .map((slot) => _SlotCard(
+                slot: slot,
+                selected: slot.index == selectedIndex,
+                onTap: slot.state == SlotState.available
+                    ? () => onSelect(slot)
+                    : null,
+              ))
+          .toList(),
+    );
+  }
+}
+
+class _SlotCard extends StatelessWidget {
+  final ChargingSlot slot;
+  final bool selected;
+  final VoidCallback? onTap;
+  const _SlotCard({required this.slot, this.selected = false, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: 64,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? slot.color.withOpacity(0.28) : slot.color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: slot.color.withOpacity(selected ? 1 : 0.4),
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              selected ? Icons.check_circle_rounded : slot.icon,
+              size: 18,
+              color: slot.color,
+            ),
+            const SizedBox(height: 4),
+            Text('Slot ${slot.index}',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: slot.color)),
+            Text(slot.label, style: TextStyle(fontSize: 9, color: slot.color)),
+          ],
+        ),
       ),
     );
   }

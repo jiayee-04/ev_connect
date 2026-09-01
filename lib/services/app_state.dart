@@ -1,68 +1,146 @@
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/vehicle.dart';
 import '../models/charging_session.dart';
 import '../models/station.dart';
 import 'mock_data.dart';
 
-/// Holds small bits of app state that need to survive app restarts:
-/// the user's vehicle profile, favourite stations, and charging
-/// history from sessions actually completed in the app.
+/// Holds small bits of app state that need to survive app restarts and
+/// sync across devices: the user's vehicle profile, favourite stations,
+/// and charging history from sessions actually completed in the app.
+///
+/// Backed by Cloud Firestore, one document per signed-in user at
+/// users/{uid}/app_state/data — a subcollection, not fields directly on
+/// users/{uid}, so this never collides with whatever profile fields your
+/// auth/signup flow already writes there (email, display name, etc).
+///
+/// The first time a signed-in user has no doc here yet, this migrates
+/// whatever was already saved locally (from the previous SharedPreferences
+/// version of this class) up into Firestore, once, so existing installs
+/// don't lose data when this ships. After that migration runs, local
+/// storage for these keys is no longer read.
 class AppState {
   AppState._();
   static final AppState instance = AppState._();
 
-  static const _vehiclesKey = 'ev_connect_vehicles';
-  static const _activeVehicleIdKey = 'ev_connect_active_vehicle_id';
-  // Old single-vehicle storage key, kept only so _getVehicles() can
-  // migrate anyone's existing saved vehicle into the new multi-vehicle
-  // list the first time they open the app after this update.
-  static const _legacyVehicleKey = 'ev_connect_vehicle';
-  static const _favouritesKey = 'ev_connect_favourites';
-  static const _historyKey = 'ev_connect_history';
+  // Legacy local keys — read only during the one-time migration below.
+  static const _legacyVehiclesKey = 'ev_connect_vehicles';
+  static const _legacyActiveVehicleIdKey = 'ev_connect_active_vehicle_id';
+  static const _legacyLegacyVehicleKey = 'ev_connect_vehicle';
+  static const _legacyFavouritesKey = 'ev_connect_favourites';
+  static const _legacyHistoryKey = 'ev_connect_history';
 
-  /// All vehicles the user has saved, oldest-added first. Migrates the
-  /// old single-vehicle format on first read, or seeds a default vehicle
-  /// if there's nothing saved at all yet.
-  Future<List<Vehicle>> getVehicles() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList(_vehiclesKey);
-    if (raw != null) {
-      final vehicles = raw
-          .map((s) =>
-              Vehicle.fromJson(Map<String, dynamic>.from(jsonDecode(s))))
-          .toList();
-      if (vehicles.isNotEmpty) return vehicles;
+  String get _uid {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw StateError('AppState requires a signed-in Firebase user');
     }
-    final legacyRaw = prefs.getString(_legacyVehicleKey);
-    final migrated = legacyRaw != null
-        ? Vehicle.fromJson(Map<String, dynamic>.from(jsonDecode(legacyRaw)))
-        : Vehicle.defaultVehicle();
-    await _writeVehicles([migrated]);
-    await prefs.setString(_activeVehicleIdKey, migrated.id);
-    return [migrated];
+    return user.uid;
   }
 
-  Future<void> _writeVehicles(List<Vehicle> vehicles) async {
+  DocumentReference<Map<String, dynamic>> get _doc => FirebaseFirestore
+      .instance
+      .collection('users')
+      .doc(_uid)
+      .collection('app_state')
+      .doc('data');
+
+  Future<Map<String, dynamic>> _readDoc() async {
+    final snap = await _doc.get();
+    if (snap.exists && snap.data() != null) return snap.data()!;
+    return await _migrateFromLocalOrSeed();
+  }
+
+  /// Runs once per user: pulls any existing local SharedPreferences data
+  /// into Firestore so nothing is lost when a returning user first opens
+  /// the app on this update. If there's nothing local either, seeds fresh
+  /// defaults (same seeding the old local-only version did).
+  Future<Map<String, dynamic>> _migrateFromLocalOrSeed() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(
-      _vehiclesKey,
-      vehicles.map((v) => jsonEncode(v.toJson())).toList(),
-    );
+
+    // --- Vehicles ---
+    List<Map<String, dynamic>> vehicles = [];
+    final rawVehicles = prefs.getStringList(_legacyVehiclesKey);
+    if (rawVehicles != null && rawVehicles.isNotEmpty) {
+      vehicles = rawVehicles
+          .map((s) => Map<String, dynamic>.from(jsonDecode(s)))
+          .toList();
+    } else {
+      final legacyRaw = prefs.getString(_legacyLegacyVehicleKey);
+      final migrated = legacyRaw != null
+          ? Vehicle.fromJson(Map<String, dynamic>.from(jsonDecode(legacyRaw)))
+          : Vehicle.defaultVehicle();
+      vehicles = [migrated.toJson()];
+    }
+    final activeVehicleId =
+        prefs.getString(_legacyActiveVehicleIdKey) ?? vehicles.first['id'] as String;
+
+    // --- Favourites ---
+    Map<String, dynamic> favourites;
+    final rawFavourites = prefs.getStringList(_legacyFavouritesKey);
+    if (rawFavourites != null) {
+      favourites = {};
+      for (final entry in rawFavourites) {
+        final station = ChargingStation.fromJson(
+            Map<String, dynamic>.from(jsonDecode(entry)));
+        favourites[station.id] = station.toJson();
+      }
+    } else {
+      favourites = {
+        for (final s in MockData.stations.take(3)) s.id: s.toJson(),
+      };
+    }
+
+    // --- History ---
+    final rawHistory = prefs.getStringList(_legacyHistoryKey) ?? [];
+    final history = rawHistory
+        .map((s) => Map<String, dynamic>.from(jsonDecode(s)))
+        .toList();
+
+    final data = <String, dynamic>{
+      'vehicles': vehicles,
+      'activeVehicleId': activeVehicleId,
+      'favourites': favourites,
+      'history': history,
+    };
+    await _doc.set(data);
+    return data;
+  }
+
+  Future<void> _updateDoc(Map<String, dynamic> patch) =>
+      _doc.set(patch, SetOptions(merge: true));
+
+  // ---------------- Vehicles ----------------
+
+  /// All vehicles the user has saved, oldest-added first.
+  Future<List<Vehicle>> getVehicles() async {
+    final data = await _readDoc();
+    final raw = (data['vehicles'] as List<dynamic>? ?? []);
+    if (raw.isEmpty) {
+      final fallback = Vehicle.defaultVehicle();
+      await _updateDoc({
+        'vehicles': [fallback.toJson()],
+        'activeVehicleId': fallback.id,
+      });
+      return [fallback];
+    }
+    return raw
+        .map((v) => Vehicle.fromJson(Map<String, dynamic>.from(v as Map)))
+        .toList();
   }
 
   Future<String> _getActiveVehicleId(List<Vehicle> vehicles) async {
-    final prefs = await SharedPreferences.getInstance();
-    final id = prefs.getString(_activeVehicleIdKey);
+    final data = await _readDoc();
+    final id = data['activeVehicleId'] as String?;
     if (id != null && vehicles.any((v) => v.id == id)) return id;
-    // Active id missing or points at a vehicle that no longer exists
-    // (e.g. it was deleted) - fall back to the first vehicle.
     final fallback = vehicles.first.id;
-    await prefs.setString(_activeVehicleIdKey, fallback);
+    await _updateDoc({'activeVehicleId': fallback});
     return fallback;
   }
 
-  /// The vehicle used everywhere only "the" vehicle matters - route
+  /// The vehicle used everywhere only "the" vehicle matters — route
   /// planning, connector matching, etc. This is the currently *active*
   /// vehicle out of possibly several saved ones.
   Future<Vehicle> getVehicle() async {
@@ -77,8 +155,7 @@ class AppState {
   Future<void> setActiveVehicle(String id) async {
     final vehicles = await getVehicles();
     if (!vehicles.any((v) => v.id == id)) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_activeVehicleIdKey, id);
+    await _updateDoc({'activeVehicleId': id});
   }
 
   /// Inserts [vehicle] if its id isn't already saved, otherwise updates
@@ -93,10 +170,10 @@ class AppState {
     } else {
       vehicles[idx] = vehicle;
     }
-    await _writeVehicles(vehicles);
+    await _updateDoc({'vehicles': vehicles.map((v) => v.toJson()).toList()});
   }
 
-  /// Removes a vehicle. Refuses to delete the last remaining vehicle -
+  /// Removes a vehicle. Refuses to delete the last remaining vehicle —
   /// the app always needs at least one active vehicle to function. If
   /// the deleted vehicle was the active one, falls back to whichever
   /// vehicle is now first.
@@ -104,35 +181,31 @@ class AppState {
     final vehicles = await getVehicles();
     if (vehicles.length <= 1) return;
     vehicles.removeWhere((v) => v.id == id);
-    await _writeVehicles(vehicles);
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getString(_activeVehicleIdKey) == id) {
-      await prefs.setString(_activeVehicleIdKey, vehicles.first.id);
+    final data = await _readDoc();
+    final patch = <String, dynamic>{
+      'vehicles': vehicles.map((v) => v.toJson()).toList(),
+    };
+    if (data['activeVehicleId'] == id) {
+      patch['activeVehicleId'] = vehicles.first.id;
     }
+    await _updateDoc(patch);
   }
+
+  // ---------------- Favourites ----------------
 
   /// Favourites are stored as full station snapshots keyed by id, not
   /// just a list of ids — a live station fetched from Open Charge Map
   /// isn't kept anywhere else once you leave the map/list screen, so
   /// storing only the id would make it impossible to ever show that
-  /// station again on the Favourites screen. Seeded with a few sample
-  /// stations on first run so Favourites isn't empty out of the box.
+  /// station again on the Favourites screen.
   Future<Map<String, ChargingStation>> _readFavourites() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList(_favouritesKey);
-    if (raw == null) {
-      final seeded = {
-        for (final s in MockData.stations.take(3)) s.id: s,
-      };
-      await _writeFavourites(seeded);
-      return seeded;
-    }
+    final data = await _readDoc();
+    final raw = Map<String, dynamic>.from(data['favourites'] as Map? ?? {});
     final map = <String, ChargingStation>{};
-    for (final entry in raw) {
+    for (final entry in raw.entries) {
       try {
-        final station = ChargingStation.fromJson(
-            Map<String, dynamic>.from(jsonDecode(entry)));
-        map[station.id] = station;
+        map[entry.key] = ChargingStation.fromJson(
+            Map<String, dynamic>.from(entry.value as Map));
       } catch (_) {
         // Skip any corrupted entry rather than losing the rest.
       }
@@ -141,11 +214,9 @@ class AppState {
   }
 
   Future<void> _writeFavourites(Map<String, ChargingStation> map) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(
-      _favouritesKey,
-      map.values.map((s) => jsonEncode(s.toJson())).toList(),
-    );
+    await _updateDoc({
+      'favourites': {for (final e in map.entries) e.key: e.value.toJson()},
+    });
   }
 
   Future<Set<String>> getFavouriteIds() async {
@@ -181,24 +252,28 @@ class AppState {
     await _writeFavourites(map);
   }
 
+  // ---------------- History ----------------
+
   /// Sessions actually completed in this app, persisted across restarts
   /// and sorted newest-first. Only real sessions the user has actually
-  /// paid for through the app - no seeded/sample entries mixed in.
+  /// paid for through the app — no seeded/sample entries mixed in.
   Future<List<ChargingSession>> getHistory() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList(_historyKey) ?? [];
-    final real = raw
-        .map((s) => ChargingSession.fromJson(
-            Map<String, dynamic>.from(jsonDecode(s))))
+    final data = await _readDoc();
+    final raw = (data['history'] as List<dynamic>? ?? []);
+    final sessions = raw
+        .map((s) => ChargingSession.fromJson(Map<String, dynamic>.from(s as Map)))
         .toList()
       ..sort((a, b) => b.date.compareTo(a.date));
-    return real;
+    return sessions;
   }
 
   Future<void> addHistoryEntry(ChargingSession session) async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList(_historyKey) ?? [];
-    raw.insert(0, jsonEncode(session.toJson()));
-    await prefs.setStringList(_historyKey, raw);
+    final data = await _readDoc();
+    final raw = List<Map<String, dynamic>>.from(
+      (data['history'] as List<dynamic>? ?? [])
+          .map((s) => Map<String, dynamic>.from(s as Map)),
+    );
+    raw.insert(0, session.toJson());
+    await _updateDoc({'history': raw});
   }
 }
