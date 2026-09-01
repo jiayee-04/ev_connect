@@ -1,6 +1,3 @@
-import '../services/locale_controller.dart';
-
-
 class AppStrings {
   AppStrings._();
 
