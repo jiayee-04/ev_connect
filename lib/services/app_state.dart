@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/vehicle.dart';
 import '../models/charging_session.dart';
 import '../models/station.dart';
-import 'mock_data.dart';
 
 class AppState {
   AppState._();
@@ -64,19 +63,17 @@ class AppState {
         prefs.getString(_legacyActiveVehicleIdKey) ?? vehicles.first['id'] as String;
 
     // --- Favourites ---
-    Map<String, dynamic> favourites;
+    // A brand-new user hasn't favourited anything — favourites start
+    // empty, not pre-populated with sample stations they never chose.
+    // Only migrate real favourites that were actually saved locally.
+    Map<String, dynamic> favourites = {};
     final rawFavourites = prefs.getStringList(_legacyFavouritesKey);
     if (rawFavourites != null) {
-      favourites = {};
       for (final entry in rawFavourites) {
         final station = ChargingStation.fromJson(
             Map<String, dynamic>.from(jsonDecode(entry)));
         favourites[station.id] = station.toJson();
       }
-    } else {
-      favourites = {
-        for (final s in MockData.stations.take(3)) s.id: s.toJson(),
-      };
     }
 
     // --- History ---
