@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_header.dart';
-import '../../services/mock_data.dart';
+import '../../services/open_charge_map_service.dart';
 import '../../models/station.dart';
 import 'station_detail_screen.dart';
 
@@ -13,10 +14,77 @@ class StationSearchScreen extends StatefulWidget {
 }
 
 class _StationSearchScreenState extends State<StationSearchScreen> {
+  static const _recentSearchesKey = 'recent_station_searches';
+  static const _maxRecent = 5;
+
   final _controller = TextEditingController();
-  List<String> _recent = ['JomCharge Sunway Pyramid', 'Shell Recharge Rawang'];
+
+  // No seeded/fake history — a new user starts with an empty list until
+  // they actually search for something.
+  List<String> _recent = [];
+  bool _loadingRecent = true;
+
   static const _popular = ['Tesla Supercharger', 'Gentari Pavilion', 'Petronas EV Charger'];
+
+  // Every known Malaysian station (from Open Charge Map, with a bundled
+  // fallback baked in at the service level if the API is unreachable),
+  // fetched once and filtered locally as the user types so search feels
+  // instant instead of round-tripping to the network per keystroke.
+  List<ChargingStation> _allStations = [];
+  bool _loadingStations = true;
+  bool _stationsFailed = false;
+
   List<ChargingStation> _results = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecent();
+    _loadStations();
+  }
+
+  Future<void> _loadRecent() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList(_recentSearchesKey);
+    if (!mounted) return;
+    setState(() {
+      _recent = raw ?? [];
+      _loadingRecent = false;
+    });
+  }
+
+  Future<void> _saveRecent() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_recentSearchesKey, _recent);
+  }
+
+  Future<void> _clearRecent() async {
+    setState(() => _recent = []);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_recentSearchesKey);
+  }
+
+  Future<void> _loadStations() async {
+    try {
+      final stations = await OpenChargeMapService.instance.allForSearch();
+      if (!mounted) return;
+      setState(() {
+        _allStations = stations;
+        _loadingStations = false;
+      });
+      // If the user already typed something while stations were loading,
+      // run the search now that data is available.
+      if (_controller.text.trim().isNotEmpty) {
+        _search(_controller.text);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadingStations = false;
+        _stationsFailed = true;
+      });
+    }
+  }
 
   void _search(String query) {
     setState(() {
@@ -24,13 +92,24 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
         _results = [];
         return;
       }
-      _results = MockData.stations
-          .where((s) => s.name.toLowerCase().contains(query.toLowerCase()))
+      final q = query.trim().toLowerCase();
+      _results = _allStations
+          .where((s) =>
+              s.name.toLowerCase().contains(q) ||
+              s.operator.toLowerCase().contains(q) ||
+              s.address.toLowerCase().contains(q))
           .toList();
       if (!_recent.contains(query)) {
-        _recent = [query, ..._recent].take(5).toList();
+        _recent = [query, ..._recent].take(_maxRecent).toList();
+        _saveRecent();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
@@ -45,7 +124,10 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
             TextField(
               controller: _controller,
               autofocus: true,
-              onChanged: _search,
+              onChanged: (v) {
+                _search(v);
+                setState(() {}); // refresh so suggestions/results toggle correctly
+              },
               decoration: const InputDecoration(
                 hintText: 'Search charging station',
                 prefixIcon: Icon(Icons.search_rounded),
@@ -64,6 +146,18 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
   }
 
   Widget _buildResults() {
+    if (_loadingStations) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_stationsFailed && _allStations.isEmpty) {
+      return Center(
+        child: Text(
+          'Could not load stations. Check your connection and try again.',
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: AppColors.textMuted),
+        ),
+      );
+    }
     if (_results.isEmpty) {
       return const Center(
         child: Text('No matching stations.',
@@ -92,26 +186,37 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
   }
 
   Widget _buildSuggestions() {
+    if (_loadingRecent) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return ListView(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Recent Searches', style: Theme.of(context).textTheme.titleMedium),
-            TextButton(
-              onPressed: () => setState(() => _recent = []),
-              child: const Text('Clear'),
-            ),
-          ],
-        ),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: _recent
-              .map((r) => _chip(r, Icons.bolt_rounded))
-              .toList(),
-        ),
-        const SizedBox(height: 20),
+        if (_recent.isNotEmpty) ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Recent Searches', style: Theme.of(context).textTheme.titleMedium),
+              TextButton(
+                onPressed: _clearRecent,
+                child: const Text('Clear'),
+              ),
+            ],
+          ),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: _recent
+                .map((r) => _chip(r, Icons.bolt_rounded))
+                .toList(),
+          ),
+          const SizedBox(height: 20),
+        ] else ...[
+          Text(
+            'No recent searches yet — search for a station to see it here.',
+            style: TextStyle(color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 20),
+        ],
         Text('Popular Searches', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
         Wrap(
@@ -131,6 +236,7 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
       onPressed: () {
         _controller.text = label;
         _search(label);
+        setState(() {});
       },
     );
   }

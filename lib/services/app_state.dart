@@ -213,10 +213,31 @@ class AppState {
     return map;
   }
 
-  Future<void> _writeFavourites(Map<String, ChargingStation> map) async {
-    await _updateDoc({
-      'favourites': {for (final e in map.entries) e.key: e.value.toJson()},
-    });
+  /// Adds or removes exactly one favourite entry via a targeted field-path
+  /// write, rather than reading the whole favourites map, mutating it in
+  /// memory, and writing it all back with `merge: true`.
+  ///
+  /// That "read, mutate, merge-set the whole map" approach looks correct
+  /// but can't actually remove anything: a merge-set is additive for
+  /// nested maps — it only adds/overwrites the keys present in the patch,
+  /// it never deletes a key just because the patch's map is smaller than
+  /// what's already stored. So writing back a favourites map with one
+  /// entry removed silently leaves that entry in Firestore forever; only
+  /// adds ever "worked". Deleting one nested key requires a dotted
+  /// field-path update with `FieldValue.delete()` instead.
+  Future<void> _setFavouriteEntry(String stationId, Map<String, dynamic>? stationJson) async {
+    if (stationJson == null) {
+      try {
+        await _doc.update({'favourites.$stationId': FieldValue.delete()});
+      } on FirebaseException catch (e) {
+        // Doc doesn't exist yet, so there's nothing to remove — fine.
+        if (e.code != 'not-found') rethrow;
+      }
+    } else {
+      await _doc.set({
+        'favourites': {stationId: stationJson},
+      }, SetOptions(merge: true));
+    }
   }
 
   Future<Set<String>> getFavouriteIds() async {
@@ -237,19 +258,12 @@ class AppState {
   Future<bool> toggleFavourite(ChargingStation station) async {
     final map = await _readFavourites();
     final nowFavourite = !map.containsKey(station.id);
-    if (nowFavourite) {
-      map[station.id] = station;
-    } else {
-      map.remove(station.id);
-    }
-    await _writeFavourites(map);
+    await _setFavouriteEntry(station.id, nowFavourite ? station.toJson() : null);
     return nowFavourite;
   }
 
   Future<void> removeFavourite(String stationId) async {
-    final map = await _readFavourites();
-    map.remove(stationId);
-    await _writeFavourites(map);
+    await _setFavouriteEntry(stationId, null);
   }
 
   // ---------------- History ----------------

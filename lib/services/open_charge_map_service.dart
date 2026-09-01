@@ -30,17 +30,45 @@ class OpenChargeMapService {
     double radiusKm = 25,
     int maxResults = 60,
   }) async {
+    return _fetch(
+      center: center,
+      queryParams: {
+        'latitude': center.latitude.toString(),
+        'longitude': center.longitude.toString(),
+        'distance': radiusKm.toString(),
+        'distanceunit': 'KM',
+        'maxresults': maxResults.toString(),
+      },
+    );
+  }
+
+  /// Fetches every known Malaysian station (unrestricted by radius) so the
+  /// search screen can filter by name/operator/address locally as the user
+  /// types, instead of hitting the network again on every keystroke.
+  /// Distance is still computed from the user's real location so results
+  /// stay honestly sortable even though this isn't a "nearby" query.
+  Future<List<ChargingStation>> allForSearch({
+    LatLng? center,
+    int maxResults = 500,
+  }) async {
+    final effectiveCenter = center ?? await LocationService.instance.getCurrentLatLng();
+    return _fetch(
+      center: effectiveCenter,
+      queryParams: {'maxresults': maxResults.toString()},
+    );
+  }
+
+  Future<List<ChargingStation>> _fetch({
+    required LatLng center,
+    required Map<String, String> queryParams,
+  }) async {
     final uri = Uri.parse(_baseUrl).replace(queryParameters: {
       'output': 'json',
       'countrycode': 'MY',
-      'latitude': center.latitude.toString(),
-      'longitude': center.longitude.toString(),
-      'distance': radiusKm.toString(),
-      'distanceunit': 'KM',
-      'maxresults': maxResults.toString(),
       'compact': 'false',
       'verbose': 'true',
       if (apiKey.isNotEmpty) 'key': apiKey,
+      ...queryParams,
     });
 
     try {
@@ -60,8 +88,8 @@ class OpenChargeMapService {
 
       return stations.isEmpty ? _fallback(center) : stations;
     } catch (_) {
-      // Offline, request blocked, rate-limited, etc. — never break the map,
-      // just fall back to bundled sample stations.
+      // Offline, request blocked, rate-limited, etc. — never break the
+      // screen, just fall back to bundled sample stations.
       return _fallback(center);
     }
   }
